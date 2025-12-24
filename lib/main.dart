@@ -1,37 +1,88 @@
 // lib/main.dart
-//
-// App entry point: boots MaterialApp and injects the CoreAdapter implementation.
-
 import 'package:flutter/material.dart';
 
-import 'package:thpitze_main/app/core_adapter_impl.dart';
-import 'package:thpitze_main/app/main_window.dart';
+import 'app/events/app_event_bus.dart';
+import 'app/events/working_memory.dart';
+import 'app/plugin_host/plugin_registry.dart';
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  final adapter = CoreAdapterImpl.defaultForApp();
-
-  runApp(ThpitzeApp(adapter: adapter));
+  runApp(const ThpitzeApp());
 }
 
-class ThpitzeApp extends StatelessWidget {
-  final CoreAdapterImpl adapter;
+/// App host root.
+/// Owns volatile host services (event bus + working memory) and disposes them.
+class ThpitzeApp extends StatefulWidget {
+  const ThpitzeApp({super.key});
 
-  const ThpitzeApp({
-    super.key,
-    required this.adapter,
-  });
+  @override
+  State<ThpitzeApp> createState() => _ThpitzeAppState();
+}
+
+class _ThpitzeAppState extends State<ThpitzeApp> {
+  late final AppEventBus _eventBus;
+  late final WorkingMemory _workingMemory;
+  late final PluginRegistry _pluginRegistry;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _eventBus = AppEventBus();
+    _workingMemory = WorkingMemory();
+    _pluginRegistry = PluginRegistry();
+
+    // Phase 1: no plugins registered yet (compile-time list later).
+    // _pluginRegistry.register(SomePlugin(), grants: {...});
+  }
+
+  @override
+  void dispose() {
+    _eventBus.dispose(); // async; fire-and-forget is fine on shutdown
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Thpitze',
-      debugShowCheckedModeBanner: false,
       theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      home: MainWindow(adapter: adapter),
+      home: HomePage(
+        pluginRegistry: _pluginRegistry,
+        workingMemory: _workingMemory,
+      ),
+    );
+  }
+}
+
+/// Temporary placeholder shell.
+/// Next step will be: AppShell that renders plugin-provided screens.
+class HomePage extends StatelessWidget {
+  final PluginRegistry pluginRegistry;
+  final WorkingMemory workingMemory;
+
+  const HomePage({
+    super.key,
+    required this.pluginRegistry,
+    required this.workingMemory,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final pluginCount = pluginRegistry.all.length;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Thpitze')),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Text(
+          'Host wired.\n'
+          'Registered plugins: $pluginCount\n'
+          'WorkingMemory strictTypeMismatch: ${workingMemory.strictTypeMismatch}',
+        ),
+      ),
     );
   }
 }
