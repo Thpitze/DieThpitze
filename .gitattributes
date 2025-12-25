@@ -1,0 +1,15 @@
+﻿# Enforce LF in repo; allow Windows working tree conversion where appropriate
+* text=auto
+
+# Dart / Flutter sources should be LF in repo
+*.dart text eol=lf
+*.yaml text eol=lf
+*.yml  text eol=lf
+*.json text eol=lf
+*.md   text eol=lf
+*.lock text eol=lf
+
+# Windows scripts
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
