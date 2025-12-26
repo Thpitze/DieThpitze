@@ -1,4 +1,4 @@
-// lib/core/vault/vault_identity_service.dart
+﻿// lib/core/vault/vault_identity_service.dart
 import 'dart:convert';
 import 'dart:io';
 
@@ -41,23 +41,36 @@ class VaultIdentityService {
       throw VaultNotFoundException('vault.json not found at: ${file.path}');
     }
 
-    final raw = file.readAsStringSync();
-    final decoded = jsonDecode(raw);
+    try {
+      final raw = file.readAsStringSync();
+      final decoded = jsonDecode(raw);
 
-    if (decoded is! Map<String, dynamic>) {
-      throw VaultInvalidException('vault.json is not a JSON object.');
+      if (decoded is! Map<String, dynamic>) {
+        throw VaultCorruptException('vault.json is not a JSON object.');
+      }
+
+      try {
+        return VaultInfo.fromJson(decoded);
+      } on Exception catch (e) {
+        throw VaultCorruptException('vault.json failed schema parsing: $e');
+      }
+    } on FormatException catch (e) {
+      // JSON parse error
+      throw VaultCorruptException('vault.json is not valid JSON: ${e.message}');
+    } on FileSystemException catch (e) {
+      throw VaultCorruptException('vault.json IO error: ${e.message}');
     }
-
-    return VaultInfo.fromJson(decoded);
   }
 
-  /// Validates vault.json against minimal contract rules.
+  /// Validates vault.json.
   VaultInfo validateVault(Directory vaultRoot) {
     final info = readVaultInfo(vaultRoot);
 
     if (info.schemaVersionValue != VaultInfo.schemaVersion) {
-      throw VaultInvalidException(
+      throw VersionUnsupportedException(
         'schemaVersion mismatch: file=${info.schemaVersionValue} expected=${VaultInfo.schemaVersion}',
+        foundSchemaVersion: info.schemaVersionValue,
+        expectedSchemaVersion: VaultInfo.schemaVersion,
       );
     }
 
@@ -74,8 +87,9 @@ class VaultIdentityService {
     return info;
   }
 
-  String _vaultJsonPath(Directory vaultRoot) =>
-      '${vaultRoot.path}${Platform.pathSeparator}$vaultFileName';
+  String _vaultJsonPath(Directory vaultRoot) {
+    return '${vaultRoot.path}${Platform.pathSeparator}$vaultFileName';
+  }
 
   bool _looksLikeUuid(String s) {
     final re = RegExp(
