@@ -23,7 +23,7 @@ import 'package:flutter/material.dart';
 abstract class CoreAdapter {
   /// Validate and open the vault rooted at [vaultPath].
   /// Should throw a domain error (or any Exception) on failure.
-  Future<void> openVault({required String vaultPath});
+  Future<void> openVault({required String vaultPath, String? password});
 
   /// List records (typically active records in records/).
   Future<List<RecordListItem>> listRecords();
@@ -521,3 +521,4 @@ class _BusyOverlay extends StatelessWidget {
     );
   }
 }
+

@@ -1,15 +1,14 @@
 /* lib/app/vault/vault_controller.dart */
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
 import '../../core/vault/vault_errors.dart';
+import '../core_adapter_impl.dart';
 import '../events/app_event_bus.dart';
 import '../events/vault_events.dart';
 import '../events/working_memory.dart';
 import '../settings/app_settings.dart';
-import '../core_adapter_impl.dart';
 import 'vault_state.dart';
 
 class VaultController extends ChangeNotifier {
@@ -23,6 +22,9 @@ class VaultController extends ChangeNotifier {
 
   DateTime _lastUserActivityUtc = DateTime.now().toUtc();
   Timer? _inactivityTimer;
+
+  // Session-only credential cache (cleared on lock/close/app exit)
+  String? _sessionPassword;
 
   VaultController({
     required CoreAdapterImpl adapter,
@@ -56,22 +58,29 @@ class VaultController extends ChangeNotifier {
     _lastUserActivityUtc = DateTime.now().toUtc();
   }
 
+  String _normalizePath(String p) {
+    var s = p.trim();
+    if (s.isEmpty) return '';
+
+    // Windows: normalize to backslashes for MRU de-dup stability
+    s = s.replaceAll('/', r'\');
+
+    // Remove trailing slashes/backslashes (but not "C:\")
+    while (s.length > 3 && (s.endsWith(r'\') || s.endsWith('/'))) {
+      s = s.substring(0, s.length - 1);
+    }
+    return s;
+  }
+
   Future<void> mount(String vaultPath, {bool persistAsLast = true}) async {
-    final trimmed = AppSettings.normalizeVaultPath(vaultPath);
+    final trimmed = _normalizePath(vaultPath);
     if (trimmed.isEmpty) return;
 
     recordUserActivity();
     _setState(VaultState.opening(trimmed));
 
     try {
-      if (!await Directory(trimmed).exists()) {
-        throw FileSystemException('Folder does not exist', trimmed);
-      }
-
-      // Reset vault-scoped ephemeral data before opening a new vault.
-      _workingMemory.resetVaultScope();
-
-      await _adapter.openVault(vaultPath: trimmed);
+      await _adapter.openVault(vaultPath: trimmed, password: _sessionPassword);
 
       if (persistAsLast) {
         _settings = _settings.copyWith(
@@ -88,11 +97,11 @@ class VaultController extends ChangeNotifier {
       _setState(VaultState.open(trimmed));
       _eventBus.publish(VaultOpened(trimmed));
     } on AuthRequiredException catch (_) {
-      // P15: Auth required => Locked (recoverable)
+      // P16: Auth required => Locked (recoverable)
       _setState(VaultState.locked(trimmed, reason: 'auth_required'));
       _eventBus.publish(VaultLocked(trimmed, 'auth_required'));
     } on InvalidCredentialsException catch (e) {
-      // P15: Invalid credentials => remain Locked, explicit failure event
+      // P16: Invalid credentials => Locked + explicit failure event
       _setState(VaultState.locked(trimmed, reason: 'invalid_credentials'));
       _eventBus.publish(VaultOpenFailed(trimmed, e.message));
     } on VaultCorruptException catch (e) {
@@ -110,38 +119,79 @@ class VaultController extends ChangeNotifier {
     }
   }
 
-  Future<void> close() async {
-    recordUserActivity();
+  Future<void> closeVault() async {
     final prev = _state.vaultPath;
-    try {
-      await _adapter.closeVault();
-    } finally {
-      _workingMemory.resetVaultScope();
-      _setState(const VaultState.closed());
-      _eventBus.publish(VaultClosed(prev));
-    }
+    _workingMemory.resetVaultScope();
+    _wipeSessionCredentials();
+
+    await _adapter.closeVault();
+    _setState(const VaultState.closed());
+    _eventBus.publish(VaultClosed(prev));
   }
 
   Future<void> lockNow({String reason = 'manual'}) async {
-    if (!_state.isOpen) return;
     final path = _state.vaultPath;
     if (path == null || path.trim().isEmpty) return;
 
-    recordUserActivity();
     _workingMemory.resetVaultScope();
+    _wipeSessionCredentials();
+
     _setState(VaultState.locked(path, reason: reason));
     _eventBus.publish(VaultLocked(path, reason));
   }
 
-  Future<void> unlockStub() async {
-    // Placeholder until credential prompt + session cache exists.
-    if (!_state.isLocked) return;
+  Future<void> unlockWithPassword({
+    required String password,
+    required bool rememberForSession,
+  }) async {
     final path = _state.vaultPath;
     if (path == null || path.trim().isEmpty) return;
 
+    if (_state.kind != VaultStateKind.locked) return;
+
     recordUserActivity();
-    _setState(VaultState.open(path));
-    _eventBus.publish(VaultUnlocked(path));
+    _setState(VaultState.opening(path));
+
+    try {
+      await _adapter.openVault(vaultPath: path, password: password);
+
+      _sessionPassword = rememberForSession ? password : null;
+
+      _setState(VaultState.open(path));
+      _eventBus.publish(VaultUnlocked(path));
+    } on AuthRequiredException catch (_) {
+      _setState(VaultState.locked(path, reason: 'auth_required'));
+      _eventBus.publish(VaultLocked(path, 'auth_required'));
+    } on InvalidCredentialsException catch (e) {
+      _setState(VaultState.locked(path, reason: 'invalid_credentials'));
+      _eventBus.publish(VaultOpenFailed(path, e.message));
+    } catch (e) {
+      final msg = e.toString();
+      _setState(VaultState.error(path, msg));
+      _eventBus.publish(VaultOpenFailed(path, msg));
+    }
+  }
+
+  void _wipeSessionCredentials() {
+    _sessionPassword = null;
+  }
+
+  void _restartInactivityTimer() {
+    _inactivityTimer?.cancel();
+    _inactivityTimer = null;
+
+    final timeout = _settings.vaultTimeoutSeconds;
+    if (timeout <= 0) return;
+
+    _inactivityTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+      if (_state.kind != VaultStateKind.open) return;
+
+      final now = DateTime.now().toUtc();
+      final elapsed = now.difference(_lastUserActivityUtc).inSeconds;
+      if (elapsed > timeout) {
+        await lockNow(reason: 'timeout');
+      }
+    });
   }
 
   Future<void> setTimeoutSeconds(int seconds) async {
@@ -163,25 +213,6 @@ class VaultController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _restartInactivityTimer() {
-    _inactivityTimer?.cancel();
-    _inactivityTimer = null;
-
-    final timeout = _settings.vaultTimeoutSeconds;
-    if (timeout <= 0) return;
-
-    _inactivityTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (!_state.isOpen) return;
-
-      final now = DateTime.now().toUtc();
-      final elapsed = now.difference(_lastUserActivityUtc).inSeconds;
-
-      if (elapsed >= timeout) {
-        lockNow(reason: 'timeout');
-      }
-    });
-  }
-
   void _setState(VaultState next) {
     _state = next;
     notifyListeners();
@@ -189,6 +220,7 @@ class VaultController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _wipeSessionCredentials();
     _inactivityTimer?.cancel();
     super.dispose();
   }

@@ -55,9 +55,9 @@ class CoreAdapterImpl implements CoreAdapter {
   }
 
   @override
-  Future<void> openVault({required String vaultPath}) async {
+  Future<void> openVault({required String vaultPath, String? password}) async {
     final dir = Directory(vaultPath);
-    _ctx = _bootstrap.openVault(dir);
+    _ctx = _bootstrap.openVault(dir, password: password);
   }
 
   @override
@@ -76,7 +76,7 @@ class CoreAdapterImpl implements CoreAdapter {
             id: h.id,
             type: h.type,
             tags: List<String>.from(h.tags),
-            // Your RecordHeader doesn't expose createdAtUtc; use updatedAtUtc as a proxy for now.
+            // RecordHeader doesn't expose createdAtUtc; use updatedAtUtc as proxy.
             createdAtUtc: h.updatedAtUtc,
             updatedAtUtc: h.updatedAtUtc,
           ),
