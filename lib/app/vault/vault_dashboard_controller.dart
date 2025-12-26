@@ -3,9 +3,10 @@ import 'package:flutter/foundation.dart';
 
 import '../core_adapter_impl.dart';
 import 'vault_controller.dart';
+import 'vault_state.dart';
 
 class VaultDashboardSnapshot {
-  final bool hasVaultOpen;
+  final VaultStateKind vaultKind;
   final String? vaultPath;
 
   final int? recordCount;
@@ -14,16 +15,19 @@ class VaultDashboardSnapshot {
   final String? lastError;
 
   const VaultDashboardSnapshot({
-    required this.hasVaultOpen,
+    required this.vaultKind,
     required this.vaultPath,
     required this.recordCount,
     required this.lastRefreshUtc,
     required this.lastError,
   });
 
-  factory VaultDashboardSnapshot.initial({required bool hasVaultOpen, required String? vaultPath}) {
+  bool get hasVaultOpen => vaultKind == VaultStateKind.open;
+  bool get isLocked => vaultKind == VaultStateKind.locked;
+
+  factory VaultDashboardSnapshot.initial({required VaultStateKind kind, required String? vaultPath}) {
     return VaultDashboardSnapshot(
-      hasVaultOpen: hasVaultOpen,
+      vaultKind: kind,
       vaultPath: vaultPath,
       recordCount: null,
       lastRefreshUtc: null,
@@ -32,7 +36,7 @@ class VaultDashboardSnapshot {
   }
 
   VaultDashboardSnapshot copyWith({
-    bool? hasVaultOpen,
+    VaultStateKind? vaultKind,
     String? vaultPath,
     int? recordCount,
     DateTime? lastRefreshUtc,
@@ -41,7 +45,7 @@ class VaultDashboardSnapshot {
     bool clearCounts = false,
   }) {
     return VaultDashboardSnapshot(
-      hasVaultOpen: hasVaultOpen ?? this.hasVaultOpen,
+      vaultKind: vaultKind ?? this.vaultKind,
       vaultPath: vaultPath ?? this.vaultPath,
       recordCount: clearCounts ? null : (recordCount ?? this.recordCount),
       lastRefreshUtc: lastRefreshUtc ?? this.lastRefreshUtc,
@@ -62,7 +66,7 @@ class VaultDashboardController extends ChangeNotifier {
   })  : _adapter = adapter,
         _vault = vault,
         _snap = VaultDashboardSnapshot.initial(
-          hasVaultOpen: vault.state.isOpen,
+          kind: vault.state.kind,
           vaultPath: vault.state.vaultPath,
         ) {
     _vault.addListener(_onVaultStateChanged);
@@ -76,13 +80,13 @@ class VaultDashboardController extends ChangeNotifier {
   }
 
   void _onVaultStateChanged() {
-    final isOpen = _vault.state.isOpen;
+    final kind = _vault.state.kind;
     final path = _vault.state.vaultPath;
 
-    // On close: clear counts to avoid stale display.
-    if (!isOpen) {
+    // Closed / Error: clear counts and path to avoid stale display.
+    if (kind == VaultStateKind.closed || kind == VaultStateKind.error) {
       _snap = _snap.copyWith(
-        hasVaultOpen: false,
+        vaultKind: kind,
         vaultPath: null,
         clearCounts: true,
         clearError: true,
@@ -91,9 +95,32 @@ class VaultDashboardController extends ChangeNotifier {
       return;
     }
 
-    // On open: update state and optionally auto-refresh.
+    // Locked: keep path visible, but do not refresh counts.
+    if (kind == VaultStateKind.locked) {
+      _snap = _snap.copyWith(
+        vaultKind: kind,
+        vaultPath: path,
+        clearError: true,
+      );
+      notifyListeners();
+      return;
+    }
+
+    // Opening: show path, clear counts (avoid lying).
+    if (kind == VaultStateKind.opening) {
+      _snap = _snap.copyWith(
+        vaultKind: kind,
+        vaultPath: path,
+        clearCounts: true,
+        clearError: true,
+      );
+      notifyListeners();
+      return;
+    }
+
+    // Open: update state and optionally auto-refresh.
     _snap = _snap.copyWith(
-      hasVaultOpen: true,
+      vaultKind: kind,
       vaultPath: path,
       clearError: true,
     );
@@ -104,7 +131,7 @@ class VaultDashboardController extends ChangeNotifier {
   }
 
   Future<void> refreshCounts() async {
-    if (!_vault.state.isOpen) return;
+    if (_vault.state.kind != VaultStateKind.open) return;
 
     try {
       final items = await _adapter.listRecords();

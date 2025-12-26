@@ -5,7 +5,7 @@ import 'vault_dashboard_controller.dart';
 
 class VaultStatsCard extends StatelessWidget {
   final VaultDashboardSnapshot snap;
-  final VoidCallback onRefresh;
+  final VoidCallback? onRefresh;
 
   const VaultStatsCard({
     super.key,
@@ -15,6 +15,28 @@ class VaultStatsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (snap.isLocked) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Vault stats', style: TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            _kv('Vault state', 'LOCKED'),
+            _kv('Vault path', snap.vaultPath ?? '—'),
+            const SizedBox(height: 8),
+            const Text('Vault is locked. Unlock to refresh stats.'),
+          ],
+        ),
+      );
+    }
+
     if (!snap.hasVaultOpen) {
       return Container(
         width: double.infinity,
@@ -50,7 +72,7 @@ class VaultStatsCard extends StatelessWidget {
               ),
               IconButton(
                 tooltip: 'Refresh',
-                onPressed: onRefresh,
+                onPressed: onRefresh, // null disables button automatically
                 icon: const Icon(Icons.refresh),
               ),
             ],

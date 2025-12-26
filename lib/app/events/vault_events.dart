@@ -16,3 +16,14 @@ class VaultOpenFailed extends AppEvent {
   final String message;
   const VaultOpenFailed(this.vaultPath, this.message);
 }
+
+class VaultLocked extends AppEvent {
+  final String vaultPath;
+  final String reason; // manual|timeout|unknown
+  const VaultLocked(this.vaultPath, this.reason);
+}
+
+class VaultUnlocked extends AppEvent {
+  final String vaultPath;
+  const VaultUnlocked(this.vaultPath);
+}
