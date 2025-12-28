@@ -1,12 +1,12 @@
 // lib/core/vault/vault_auth_service.dart
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 
 import 'vault_errors.dart';
-import 'vault_info.dart';
 
 enum VaultAuthMode { unauthenticated, passwordProtected }
 
@@ -85,7 +85,7 @@ class VaultAuthService {
 
   void requireAuth({
     required Directory vaultRoot,
-    required VaultInfo vaultInfo,
+    required String vaultId,
     required String? password,
   }) {
     final cfg = VaultAuthConfig.loadOrDefault(vaultRoot);
@@ -103,13 +103,86 @@ class VaultAuthService {
 
     final key = _deriveKey(password: pw, salt: salt, iterations: iters);
 
-    final data = utf8.encode(vaultInfo.vaultId);
+    final data = utf8.encode(vaultId);
     final mac = Hmac(sha256, key).convert(data).bytes;
 
     if (!_constantTimeEquals(Uint8List.fromList(mac), expectedMac)) {
       throw InvalidCredentialsException('Invalid credentials.');
     }
   }
+  /// Creates/overwrites auth.json with password protection (atomic write).
+  /// Stores only verifier material (no plaintext password).
+  void enablePasswordProtection({
+    required Directory vaultRoot,
+    required String vaultId,
+    required String password,
+    int iterations = 200000,
+  }) {
+    final pw = password.trim();
+    if (pw.isEmpty) {
+      throw VaultInvalidException('Password must not be empty.');
+    }
+    if (iterations < 10000) {
+      throw VaultInvalidException('Iterations too low: ');
+    }
+
+    final salt = _randomBytes(16);
+    final key = _deriveKey(password: pw, salt: salt, iterations: iterations);
+
+    final data = utf8.encode(vaultId);
+    final macBytes = Hmac(sha256, key).convert(data).bytes;
+
+    final obj = <String, dynamic>{
+      'mode': 'password',
+      'salt_b64': base64Encode(salt),
+      'mac_b64': base64Encode(macBytes),
+      'iterations': iterations,
+    };
+
+    _writeAuthJsonAtomic(vaultRoot, const JsonEncoder.withIndent('  ').convert(obj));
+  }
+
+  /// Removes auth.json if present (disables password protection).
+  void disablePasswordProtection({required Directory vaultRoot}) {
+    final f = File('');
+    if (f.existsSync()) {
+      f.deleteSync();
+    }
+  }
+
+  void _writeAuthJsonAtomic(Directory vaultRoot, String contents) {
+    if (!vaultRoot.existsSync()) {
+      throw VaultNotFoundException('Vault root does not exist: ');
+    }
+
+    final target = File('');
+    final tmp = File(
+      '.tmp.',
+    );
+
+    try {
+      tmp.writeAsStringSync(contents, flush: true);
+      if (target.existsSync()) {
+        target.deleteSync();
+      }
+      tmp.renameSync(target.path);
+    } catch (e) {
+      try {
+        if (tmp.existsSync()) tmp.deleteSync();
+      } catch (_) {}
+      rethrow;
+    }
+  }
+
+  Uint8List _randomBytes(int n) {
+    final r = Random.secure();
+    final out = Uint8List(n);
+    for (var i = 0; i < n; i++) {
+      out[i] = r.nextInt(256);
+    }
+    return out;
+  }
+
 
   Uint8List _deriveKey({
     required String password,
@@ -137,3 +210,7 @@ class VaultAuthService {
     return diff == 0;
   }
 }
+
+
+
+

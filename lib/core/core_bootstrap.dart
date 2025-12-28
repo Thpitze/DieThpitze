@@ -18,9 +18,13 @@ class CoreBootstrap {
   }) : vaultAuthService = vaultAuthService ?? const VaultAuthService();
 
   CoreContext openVault(Directory vaultRoot, {String? password}) {
-    final info = vaultIdentityService.validateVault(vaultRoot);
+    final info = vaultIdentityService.readVaultInfo(vaultRoot);
 
-    vaultAuthService.requireAuth(vaultRoot: vaultRoot, vaultInfo: info, password: password);
+    vaultAuthService.requireAuth(
+      vaultRoot: vaultRoot,
+      vaultId: info.vaultId,
+      password: password,
+    );
 
     return CoreContext(
       vaultRoot: vaultRoot,
@@ -29,3 +33,4 @@ class CoreBootstrap {
     );
   }
 }
+
