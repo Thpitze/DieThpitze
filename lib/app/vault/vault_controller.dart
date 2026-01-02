@@ -30,7 +30,7 @@ class VaultController extends ChangeNotifier {
   DateTime _lastUserActivityUtc = DateTime.now().toUtc();
   Timer? _inactivityTimer;
 
-  // Session-only credential cache (cleared on lock/close/app exit)
+  // Session credential cache (cleared on lock/close/app exit)
   String? _sessionPassword;
 
   VaultController({
@@ -44,8 +44,6 @@ class VaultController extends ChangeNotifier {
         _settingsStore = settingsStore;
 
   VaultState get state => _state;
-  AppSettings get settings => _settings;
-  VaultProfile? get profile => _profile;
 
   String? get lastVaultPath => _settings.lastVaultPath;
   List<String> get recentVaultPaths => _settings.recentVaultPaths;
@@ -60,25 +58,24 @@ class VaultController extends ChangeNotifier {
     notifyListeners();
 
     final path = _settings.lastVaultPath;
-    if (path == null) return;
+    if (path == null || path.trim().isEmpty) return;
 
     await mount(path, persistAsLast: false);
   }
 
   void recordUserActivity() {
     _lastUserActivityUtc = DateTime.now().toUtc();
+    _restartInactivityTimer();
   }
 
-  String _normalizePath(String p) {
-    var s = p.trim();
-    if (s.isEmpty) return '';
+  String _normalizePath(String input) {
+    var s = input.trim();
 
-    // Windows: normalize to backslashes for MRU de-dup stability
-    s = s.replaceAll('/', r'\');
-
-    // Remove trailing slashes/backslashes (but not "C:\")
-    while (s.length > 3 && (s.endsWith(r'\') || s.endsWith('/'))) {
-      s = s.substring(0, s.length - 1);
+    // Remove surrounding quotes sometimes coming from copy/paste
+    if (s.length >= 2 &&
+        ((s.startsWith('"') && s.endsWith('"')) ||
+            (s.startsWith("'") && s.endsWith("'")))) {
+      s = s.substring(1, s.length - 1);
     }
 
     return s;
@@ -112,11 +109,18 @@ class VaultController extends ChangeNotifier {
       _restartInactivityTimer();
       _eventBus.publish(VaultOpened(trimmed));
     } on AuthRequiredException catch (_) {
-      // P16: Auth required => Locked (recoverable)
+      // Best-effort: load profile even while locked (enables correct timeout + mode display in UI).
+      try {
+        await _loadOrCreateProfileForMountedVault(trimmed);
+      } catch (_) {}
+
       _setState(VaultState.locked(trimmed, reason: 'auth_required'));
       _eventBus.publish(VaultLocked(trimmed, 'auth_required'));
     } on InvalidCredentialsException catch (e) {
-      // P16: Invalid credentials => Locked + explicit failure event
+      try {
+        await _loadOrCreateProfileForMountedVault(trimmed);
+      } catch (_) {}
+
       _setState(VaultState.locked(trimmed, reason: 'invalid_credentials'));
       _eventBus.publish(VaultOpenFailed(trimmed, e.message));
     } on VaultCorruptException catch (e) {
@@ -142,27 +146,26 @@ class VaultController extends ChangeNotifier {
 
     await _adapter.closeVault();
     _setState(const VaultState.closed());
-    _restartInactivityTimer();
     _eventBus.publish(VaultClosed(prev));
   }
 
-  Future<void> lockNow({String reason = 'manual'}) async {
+  Future<void> lockNow({required String reason}) async {
+    if (_state.kind != VaultStateKind.open) return;
+
     final path = _state.vaultPath;
     if (path == null || path.trim().isEmpty) return;
-
-    if (_state.kind != VaultStateKind.open) return;
 
     _workingMemory.resetVaultScope();
     _wipeSessionCredentials();
 
+    await _adapter.closeVault();
     _setState(VaultState.locked(path, reason: reason));
     _eventBus.publish(VaultLocked(path, reason));
   }
 
-  Future<void> unlockWithPassword({
-    required String password,
-    required bool rememberForSession,
-  }) async {
+  /// Unlocks a locked vault. If the vault has no auth.json, password may be empty.
+  /// Session caching is always enabled (no "remember me" toggle anymore).
+  Future<void> unlockWithPassword({required String password}) async {
     final path = _state.vaultPath;
     if (path == null || path.trim().isEmpty) return;
 
@@ -172,9 +175,10 @@ class VaultController extends ChangeNotifier {
     _setState(VaultState.opening(path));
 
     try {
-      await _adapter.openVault(vaultPath: path, password: password);
+      await _adapter.openVault(vaultPath: path, password: password.trim().isEmpty ? null : password);
 
-      _sessionPassword = rememberForSession ? password : null;
+      // Always remember for session (until lock/close/app exit)
+      _sessionPassword = password.trim().isEmpty ? null : password;
 
       await _loadOrCreateProfileForMountedVault(path);
 
@@ -182,9 +186,17 @@ class VaultController extends ChangeNotifier {
       _restartInactivityTimer();
       _eventBus.publish(VaultUnlocked(path));
     } on AuthRequiredException catch (_) {
+      try {
+        await _loadOrCreateProfileForMountedVault(path);
+      } catch (_) {}
+
       _setState(VaultState.locked(path, reason: 'auth_required'));
       _eventBus.publish(VaultLocked(path, 'auth_required'));
     } on InvalidCredentialsException catch (e) {
+      try {
+        await _loadOrCreateProfileForMountedVault(path);
+      } catch (_) {}
+
       _setState(VaultState.locked(path, reason: 'invalid_credentials'));
       _eventBus.publish(VaultOpenFailed(path, e.message));
     } catch (e) {
@@ -199,13 +211,15 @@ class VaultController extends ChangeNotifier {
 
     // Migration hook (P17 Step 6):
     // If profile.json does not exist yet, create defaults, then seed timeout from legacy host setting once.
-    final profileFile = File(_joinPath(root.path, VaultProfileService.profileFileName));
+    final profileFile =
+        File(_joinPath(root.path, VaultProfileService.profileFileName));
     final existed = await profileFile.exists();
 
     final loaded = await _profileService.loadOrCreate(root);
 
     if (!existed) {
       final legacyTimeout = _settings.vaultTimeoutSeconds;
+
       final seeded = loaded.security.timeoutSeconds == legacyTimeout
           ? loaded
           : loaded.copyWith(
@@ -215,6 +229,7 @@ class VaultController extends ChangeNotifier {
       if (seeded != loaded) {
         await _profileService.save(root, seeded);
       }
+
       _profile = seeded;
     } else {
       _profile = loaded;
@@ -241,67 +256,46 @@ class VaultController extends ChangeNotifier {
       if (_state.kind != VaultStateKind.open) return;
 
       final now = DateTime.now().toUtc();
-      final elapsed = now.difference(_lastUserActivityUtc).inSeconds;
-      if (elapsed > timeout) {
-        await lockNow(reason: 'timeout');
-      }
+      final idle = now.difference(_lastUserActivityUtc).inSeconds;
+      if (idle < timeout) return;
+
+      await lockNow(reason: 'timeout');
     });
   }
 
-  Future<void> setTimeoutSeconds(int seconds) async {
-    final s = seconds < 0 ? 0 : seconds;
+  void _setState(VaultState s) {
+    _state = s;
+    notifyListeners();
+  }
 
-    final path = _state.vaultPath;
-    if (path != null && path.trim().isNotEmpty) {
-      // Vault-scoped timeout (P17): persist into profile.json.
-      final current = _profile ?? VaultProfile.defaults();
-      final next = current.copyWith(
-        security: current.security.copyWith(timeoutSeconds: s),
-      );
+  Future<void> removeRecent(String path) async {
+    final trimmed = _normalizePath(path);
+    if (trimmed.isEmpty) return;
 
-      _profile = next;
-      await _profileService.save(Directory(path), next);
-
-      _restartInactivityTimer();
-      notifyListeners();
-      return;
-    }
-
-    // No vault mounted: keep legacy host setting for backwards compatibility.
-    _settings = _settings.copyWith(vaultTimeoutSeconds: s);
+    _settings = _settings.copyWith(
+      recentVaultPaths: _settings.recentVaultPaths.where((p) => p != trimmed).toList(growable: false),
+    );
     await _settingsStore.save(_settings);
+    notifyListeners();
+  }
+
+  Future<void> setTimeoutSeconds(int seconds) async {
+    final path = _state.vaultPath;
+    if (path == null || path.trim().isEmpty) return;
+
+    // Persist to vault profile when mounted; otherwise fall back to legacy host setting.
+    if (_state.kind == VaultStateKind.open || _state.kind == VaultStateKind.locked) {
+      final root = Directory(path);
+      final cur = await _profileService.loadOrCreate(root);
+      final next = cur.copyWith(security: cur.security.copyWith(timeoutSeconds: seconds));
+      await _profileService.save(root, next);
+      _profile = next;
+    } else {
+      _settings = _settings.copyWith(vaultTimeoutSeconds: seconds);
+      await _settingsStore.save(_settings);
+    }
 
     _restartInactivityTimer();
     notifyListeners();
   }
-
-  void _setState(VaultState next) {
-    _state = next;
-    notifyListeners();
-  }
-  Future<void> removeRecent(String vaultPath) async {
-    final trimmed = _normalizePath(vaultPath);
-    if (trimmed.isEmpty) return;
-
-    final current = _settings.recentVaultPaths;
-    final next = <String>[
-      for (final p in current)
-        if (_normalizePath(p) != trimmed) p,
-    ];
-
-    if (listEquals(current, next)) return;
-
-    _settings = _settings.copyWith(recentVaultPaths: next);
-    await _settingsStore.save(_settings);
-    notifyListeners();
-  }
-
-
-  @override
-  void dispose() {
-    _wipeSessionCredentials();
-    _inactivityTimer?.cancel();
-    super.dispose();
-  }
 }
-

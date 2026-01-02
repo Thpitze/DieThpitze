@@ -46,8 +46,6 @@ class _ChangeVaultSecurityDialogState extends State<ChangeVaultSecurityDialog> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  /// Reads vaultId from <vaultRoot>/vault.json.
-  /// We do this locally to avoid depending on a specific VaultIdentityService API shape.
   String _readVaultId(Directory vaultRoot) {
     final f = File('${vaultRoot.path}${Platform.pathSeparator}$_vaultFileName');
     if (!f.existsSync()) {
@@ -82,16 +80,16 @@ class _ChangeVaultSecurityDialogState extends State<ChangeVaultSecurityDialog> {
     setState(() => _busy = true);
     try {
       final root = Directory(path);
-
-      // Minimal vault info required by VaultAuthService: vaultId.
-            final vaultId = _readVaultId(root);
+      final vaultId = _readVaultId(root);
 
       const authSvc = VaultAuthService();
       authSvc.enablePasswordProtection(
         vaultRoot: root,
         vaultId: vaultId,
         password: p1,
-      );if (!mounted) return;
+      );
+
+      if (!mounted) return;
       Navigator.of(context).pop();
       _toast('Password protection enabled.');
     } catch (e) {
@@ -112,16 +110,23 @@ class _ChangeVaultSecurityDialogState extends State<ChangeVaultSecurityDialog> {
 
     setState(() => _busy = true);
     try {
-      // Verify current password by attempting unlock/open (session not remembered).
-      await widget.vault.unlockWithPassword(password: current, rememberForSession: false);
-
-      // If unlock succeeded, remove auth.json
       final root = Directory(path);
+      final vaultId = _readVaultId(root);
+
+      // Verify password WITHOUT unlocking/locking UI state:
+      // If invalid, VaultAuthService throws InvalidCredentialsException.
       const authSvc = VaultAuthService();
+      authSvc.requireAuth(
+        vaultRoot: root,
+        vaultId: vaultId,
+        password: current,
+      );
+
+      // Remove auth.json
       authSvc.disablePasswordProtection(vaultRoot: root);
 
-      // Safety: lock immediately (forces re-evaluation of access)
-      await widget.vault.lockNow(reason: 'security_changed');
+      // Do NOT lock the vault here. If it's open, keep it open.
+      // If it's locked (unlikely), the AppShell will now unlock without prompting.
 
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -223,4 +228,3 @@ class _ChangeVaultSecurityDialogState extends State<ChangeVaultSecurityDialog> {
     );
   }
 }
-

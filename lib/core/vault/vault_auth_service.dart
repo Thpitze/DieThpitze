@@ -110,6 +110,7 @@ class VaultAuthService {
       throw InvalidCredentialsException('Invalid credentials.');
     }
   }
+
   /// Creates/overwrites auth.json with password protection (atomic write).
   /// Stores only verifier material (no plaintext password).
   void enablePasswordProtection({
@@ -123,7 +124,7 @@ class VaultAuthService {
       throw VaultInvalidException('Password must not be empty.');
     }
     if (iterations < 10000) {
-      throw VaultInvalidException('Iterations too low: ');
+      throw VaultInvalidException('Iterations too low: $iterations');
     }
 
     final salt = _randomBytes(16);
@@ -144,7 +145,7 @@ class VaultAuthService {
 
   /// Removes auth.json if present (disables password protection).
   void disablePasswordProtection({required Directory vaultRoot}) {
-    final f = File('');
+    final f = File('${vaultRoot.path}${Platform.pathSeparator}${VaultAuthConfig.fileName}');
     if (f.existsSync()) {
       f.deleteSync();
     }
@@ -152,12 +153,12 @@ class VaultAuthService {
 
   void _writeAuthJsonAtomic(Directory vaultRoot, String contents) {
     if (!vaultRoot.existsSync()) {
-      throw VaultNotFoundException('Vault root does not exist: ');
+      throw VaultNotFoundException('Vault root does not exist: ${vaultRoot.path}');
     }
 
-    final target = File('');
+    final target = File('${vaultRoot.path}${Platform.pathSeparator}${VaultAuthConfig.fileName}');
     final tmp = File(
-      '.tmp.',
+      '${vaultRoot.path}${Platform.pathSeparator}.${VaultAuthConfig.fileName}.tmp.${DateTime.now().microsecondsSinceEpoch}',
     );
 
     try {
@@ -182,7 +183,6 @@ class VaultAuthService {
     }
     return out;
   }
-
 
   Uint8List _deriveKey({
     required String password,
@@ -210,7 +210,3 @@ class VaultAuthService {
     return diff == 0;
   }
 }
-
-
-
-
