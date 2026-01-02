@@ -1,13 +1,12 @@
 // bin/thpitze_core.dart
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
 import 'package:thpitze_main/core/core.dart';
 
-import 'package:path/path.dart' as p;
-
-void main(List<String> args) {
+Future<void> main(List<String> args) async {
   if (args.length < 2) {
     _printUsage();
     exit(64);
@@ -61,20 +60,18 @@ void main(List<String> args) {
         createdAtUtc: now,
         updatedAtUtc: now,
         type: 'note',
-        tags: ['alpha', 'beta'],
-        bodyMarkdown: '# Hello\n\nThis is a test.\n',
+        tags: const ['cli'],
+        bodyMarkdown: '# Hello\n\nThis is a codec roundtrip test.\n',
       );
 
       final encoded = codec.encode(r);
-      print('=== ENCODED RECORD FILE ===');
-      print(encoded);
-
       final decoded = codec.decode(encoded);
-      print('=== DECODED SUMMARY ===');
+
+      print('codec encode/decode ok');
       print('id: ${decoded.id}');
       print('type: ${decoded.type}');
       print('tags: ${decoded.tags}');
-      print('body: ${_firstN(decoded.bodyMarkdown, 40)}');
+      print('body:\n${decoded.bodyMarkdown}');
       return;
     }
 
@@ -85,10 +82,7 @@ void main(List<String> args) {
     if (cmd == 'record-create') {
       final ctx = _openContext(dir, vaultService);
 
-      final service = RecordService(
-        codec: RecordCodec(),
-        clock: ctx.clock,
-      );
+      final service = RecordService(codec: RecordCodec(), clock: ctx.clock);
 
       final record = service.create(
         vaultRoot: ctx.vaultRoot,
@@ -99,8 +93,10 @@ void main(List<String> args) {
 
       print('Record created');
       print('id: ${record.id}');
-      print('path: ${ctx.vaultRoot.path}${Platform.pathSeparator}records'
-          '${Platform.pathSeparator}${record.id}.md');
+      print(
+        'path: ${ctx.vaultRoot.path}${Platform.pathSeparator}records'
+        '${Platform.pathSeparator}${record.id}.md',
+      );
       return;
     }
 
@@ -113,15 +109,9 @@ void main(List<String> args) {
       final recordId = args[2];
       final ctx = _openContext(dir, vaultService);
 
-      final service = RecordService(
-        codec: RecordCodec(),
-        clock: ctx.clock,
-      );
+      final service = RecordService(codec: RecordCodec(), clock: ctx.clock);
 
-      final record = service.read(
-        vaultRoot: ctx.vaultRoot,
-        id: recordId,
-      );
+      final record = service.read(vaultRoot: ctx.vaultRoot, id: recordId);
 
       print('Record read');
       print('id: ${record.id}');
@@ -142,10 +132,7 @@ void main(List<String> args) {
       final recordId = args[2];
       final ctx = _openContext(dir, vaultService);
 
-      final service = RecordService(
-        codec: RecordCodec(),
-        clock: ctx.clock,
-      );
+      final service = RecordService(codec: RecordCodec(), clock: ctx.clock);
 
       final before = service.read(vaultRoot: ctx.vaultRoot, id: recordId);
 
@@ -154,11 +141,7 @@ void main(List<String> args) {
 
       final newBody = before.bodyMarkdown + appendedLine;
 
-      final newTags = <String>{
-        ...before.tags,
-        'updated',
-      }.toList()
-        ..sort();
+      final newTags = <String>{...before.tags, 'updated'}.toList()..sort();
 
       final after = service.update(
         vaultRoot: ctx.vaultRoot,
@@ -180,10 +163,7 @@ void main(List<String> args) {
     if (cmd == 'record-list') {
       final ctx = _openContext(dir, vaultService);
 
-      final service = RecordService(
-        codec: RecordCodec(),
-        clock: ctx.clock,
-      );
+      final service = RecordService(codec: RecordCodec(), clock: ctx.clock);
 
       final headers = service.listHeaders(vaultRoot: ctx.vaultRoot);
 
@@ -191,7 +171,9 @@ void main(List<String> args) {
       for (final h in headers) {
         final shortId = _shortId(h.id);
         final tags = h.tags.isEmpty ? '-' : h.tags.join(',');
-        print('${h.updatedAtUtc} | ${h.type} | ${h.title} | tags=$tags | $shortId');
+        print(
+          '${h.updatedAtUtc} | ${h.type} | ${h.title} | tags=$tags | $shortId',
+        );
       }
       return;
     }
@@ -209,34 +191,25 @@ void main(List<String> args) {
       final provided = args[2].trim();
       final ctx = _openContext(dir, vaultService);
 
-      final service = RecordService(
-        codec: RecordCodec(),
-        clock: ctx.clock,
-      );
+      final service = RecordService(codec: RecordCodec(), clock: ctx.clock);
 
-      final resolvedId = _resolveRecordIdInRecords(
-        vaultRoot: ctx.vaultRoot,
-        idOrPrefix: provided,
-      );
+      final headers = service.listHeaders(vaultRoot: ctx.vaultRoot);
+      final match = _matchByPrefix(headers.map((h) => h.id), provided);
 
-      service.deleteRecord(vaultRoot: ctx.vaultRoot, recordId: resolvedId);
+      if (match == null) {
+        stderr.writeln('No record matches prefix/id: "$provided"');
+        exit(2);
+      }
 
-      print('Record deleted (moved to trash)');
-      print('id: $resolvedId');
-      print('from: ${ctx.vaultRoot.path}${Platform.pathSeparator}records'
-          '${Platform.pathSeparator}$resolvedId.md');
-      print('to:   ${ctx.vaultRoot.path}${Platform.pathSeparator}trash'
-          '${Platform.pathSeparator}$resolvedId.md');
+      service.deleteRecord(vaultRoot: ctx.vaultRoot, recordId: match);
+      print('Record moved to trash: $match');
       return;
     }
 
     if (cmd == 'trash-list') {
       final ctx = _openContext(dir, vaultService);
 
-      final service = RecordService(
-        codec: RecordCodec(),
-        clock: ctx.clock,
-      );
+      final service = RecordService(codec: RecordCodec(), clock: ctx.clock);
 
       final headers = service.listTrashedHeaders(vaultRoot: ctx.vaultRoot);
 
@@ -244,11 +217,14 @@ void main(List<String> args) {
       for (final h in headers) {
         final shortId = _shortId(h.id);
         final tags = h.tags.isEmpty ? '-' : h.tags.join(',');
-        print('${h.updatedAtUtc} | ${h.type} | ${h.title} | tags=$tags | $shortId');
+        print(
+          '${h.updatedAtUtc} | ${h.type} | ${h.title} | tags=$tags | $shortId',
+        );
       }
       return;
     }
-    if (cmd == 'trash-restore') {
+
+    if (cmd == 'record-restore') {
       if (args.length < 3) {
         stderr.writeln('Missing record id or prefix');
         exit(64);
@@ -257,135 +233,89 @@ void main(List<String> args) {
       final provided = args[2].trim();
       final ctx = _openContext(dir, vaultService);
 
-      final service = RecordService(
-        codec: RecordCodec(),
-        clock: ctx.clock,
-      );
+      final service = RecordService(codec: RecordCodec(), clock: ctx.clock);
 
-      final resolvedId = _resolveRecordIdInTrash(
-        vaultRoot: ctx.vaultRoot,
-        idOrPrefix: provided,
-      );
+      final trashed = service.listTrashedHeaders(vaultRoot: ctx.vaultRoot);
+      final match = _matchByPrefix(trashed.map((h) => h.id), provided);
 
-      service.restoreRecord(vaultRoot: ctx.vaultRoot, recordId: resolvedId);
+      if (match == null) {
+        stderr.writeln('No trashed record matches prefix/id: "$provided"');
+        exit(2);
+      }
 
-      print('Record restored (moved to records)');
-      print('id: $resolvedId');
-      print('from: ${ctx.vaultRoot.path}${Platform.pathSeparator}trash'
-          '${Platform.pathSeparator}$resolvedId.md');
-      print('to:   ${ctx.vaultRoot.path}${Platform.pathSeparator}records'
-          '${Platform.pathSeparator}$resolvedId.md');
+      service.restoreRecord(vaultRoot: ctx.vaultRoot, recordId: match);
+      print('Record restored: $match');
       return;
     }
 
+    stderr.writeln('Unknown command: $cmd');
     _printUsage();
     exit(64);
-  } on VaultException catch (e) {
-    stderr.writeln('ERROR: ${e.message}');
+  } catch (e, st) {
+    stderr.writeln('Error: $e');
+    stderr.writeln(st);
     exit(1);
   }
 }
 
 CoreContext _openContext(
-  Directory vaultDir,
-  VaultIdentityService vaultService,
+  Directory vaultRoot,
+  VaultIdentityService vaultIdentityService,
 ) {
   final bootstrap = CoreBootstrap(
-    vaultIdentityService: vaultService,
-    clock: SystemClock(),
+    vaultIdentityService: vaultIdentityService,
+    clock: _SystemClock(),
   );
-  return bootstrap.openVault(vaultDir);
+
+  // Optional: allow supplying password via env var for CLI usage
+  final pw = Platform.environment['THPITZE_PASSWORD'];
+  return bootstrap.openVault(vaultRoot, password: pw);
 }
 
-String _resolveRecordIdInRecords({
-  required Directory vaultRoot,
-  required String idOrPrefix,
-}) {
-  return _resolveRecordIdInDir(
-    dir: Directory(p.join(vaultRoot.path, 'records')),
-    idOrPrefix: idOrPrefix,
-    label: 'records',
-  );
+class _SystemClock implements Clock {
+  @override
+  DateTime nowUtc() => DateTime.now().toUtc();
 }
 
-String _resolveRecordIdInTrash({
-  required Directory vaultRoot,
-  required String idOrPrefix,
-}) {
-  return _resolveRecordIdInDir(
-    dir: Directory(p.join(vaultRoot.path, 'trash')),
-    idOrPrefix: idOrPrefix,
-    label: 'trash',
-  );
-}
+String _shortId(String id) => id.length <= 8 ? id : id.substring(0, 8);
 
-String _resolveRecordIdInDir({
-  required Directory dir,
-  required String idOrPrefix,
-  required String label,
-}) {
-  final needle = idOrPrefix.trim();
-  if (needle.isEmpty) {
-    throw VaultInvalidException('Empty record id/prefix');
+String? _matchByPrefix(Iterable<String> ids, String provided) {
+  if (provided.isEmpty) return null;
+
+  // Exact match first
+  for (final id in ids) {
+    if (id == provided) return id;
   }
 
-  // If it looks like a full UUID, accept as-is.
-  if (needle.length >= 36 && needle.contains('-')) {
-    return needle;
-  }
-
-  if (!dir.existsSync()) {
-    throw VaultNotFoundException('Directory does not exist: ${dir.path}');
-  }
-
+  // Prefix match
   final matches = <String>[];
-  for (final entity in dir.listSync(followLinks: false)) {
-    if (entity is! File) continue;
-    if (!entity.path.toLowerCase().endsWith('.md')) continue;
-
-    final id = p.basenameWithoutExtension(entity.path);
-    if (id.startsWith(needle)) {
-      matches.add(id);
-    }
+  for (final id in ids) {
+    if (id.startsWith(provided)) matches.add(id);
   }
 
-  if (matches.isEmpty) {
-    throw VaultNotFoundException('No $label record matches prefix: $needle');
-  }
-
-  matches.sort();
-
-  if (matches.length > 1) {
-    final shown = matches.take(10).map(_shortId).join(', ');
-    throw VaultInvalidException(
-      'Ambiguous prefix "$needle" in $label. Matches: $shown',
-    );
-  }
-
-  return matches.single;
-}
-
-String _shortId(String id) {
-  if (id.length <= 8) return id;
-  return id.substring(0, 8);
-}
-
-String _firstN(String s, int n) {
-  if (s.length <= n) return s;
-  return '${s.substring(0, n)}...';
+  if (matches.length == 1) return matches.first;
+  return null; // none or ambiguous
 }
 
 void _printUsage() {
-  print('Usage:');
-  print('  dart run bin/thpitze_core.dart init <vault_path>');
-  print('  dart run bin/thpitze_core.dart validate <vault_path>');
-  print('  dart run bin/thpitze_core.dart open <vault_path>');
-  print('  dart run bin/thpitze_core.dart codec-test <anything>');
-  print('  dart run bin/thpitze_core.dart record-create <vault_path>');
-  print('  dart run bin/thpitze_core.dart record-read <vault_path> <record_id>');
-  print('  dart run bin/thpitze_core.dart record-update <vault_path> <record_id>');
-  print('  dart run bin/thpitze_core.dart record-list <vault_path>');
-  print('  dart run bin/thpitze_core.dart record-delete <vault_path> <id_or_prefix>');
-  print('  dart run bin/thpitze_core.dart trash-list <vault_path>');
-  print('  dart run bin/thpitze_core.dart trash-restore <vault_path> <id_or_prefix>');
+  final exe = p.basename(Platform.resolvedExecutable);
+  print('Usage: $exe bin/thpitze_core.dart <command> <vaultPath> [args]');
+  print('');
+  print('Vault:');
+  print('  init <vaultPath>');
+  print('  validate <vaultPath>');
+  print('  open <vaultPath>');
+  print('');
+  print('Records:');
+  print('  codec-test <vaultPath>');
+  print('  record-create <vaultPath>');
+  print('  record-read <vaultPath> <recordId>');
+  print('  record-update <vaultPath> <recordId>');
+  print('  record-list <vaultPath>');
+  print('  record-delete <vaultPath> <recordIdOrPrefix>');
+  print('  trash-list <vaultPath>');
+  print('  record-restore <vaultPath> <recordIdOrPrefix>');
+  print('');
+  print('Env:');
+  print('  THPITZE_PASSWORD=<pw>   (optional for open/auth)');
 }

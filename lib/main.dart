@@ -50,10 +50,7 @@ class _ThpitzeAppState extends State<ThpitzeApp> {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      home: AppShell(
-        hostServices: _hostServices,
-        plugins: buildPlugins(),
-      ),
+      home: AppShell(hostServices: _hostServices, plugins: buildPlugins()),
     );
   }
 }

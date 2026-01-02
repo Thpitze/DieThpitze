@@ -27,7 +27,9 @@ class WorkingMemory {
     }
 
     if (strictTypeMismatch) {
-      throw StateError('WorkingMemory type mismatch for "$key": ${v.runtimeType} != $T');
+      throw StateError(
+        'WorkingMemory type mismatch for "$key": ${v.runtimeType} != $T',
+      );
     }
     return null;
   }
@@ -51,7 +53,9 @@ class WorkingMemory {
       }
 
       if (strictTypeMismatch) {
-        throw StateError('WorkingMemory type mismatch for "$key": ${v.runtimeType} != $T');
+        throw StateError(
+          'WorkingMemory type mismatch for "$key": ${v.runtimeType} != $T',
+        );
       }
       return null;
     });

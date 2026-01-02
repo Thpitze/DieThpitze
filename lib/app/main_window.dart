@@ -77,20 +77,13 @@ class RecordViewModel {
 class MainWindow extends StatefulWidget {
   final CoreAdapter adapter;
 
-  const MainWindow({
-    super.key,
-    required this.adapter,
-  });
+  const MainWindow({super.key, required this.adapter});
 
   @override
   State<MainWindow> createState() => _MainWindowState();
 }
 
-enum _Route {
-  openVault,
-  recordList,
-  recordView,
-}
+enum _Route { openVault, recordList, recordView }
 
 class _MainWindowState extends State<MainWindow> {
   _Route _route = _Route.openVault;
@@ -264,26 +257,26 @@ class _MainWindowState extends State<MainWindow> {
           Expanded(
             child: switch (_route) {
               _Route.openVault => _OpenVaultView(
-                  controller: _vaultPathCtrl,
-                  onOpen: _busy ? null : _doOpenVault,
-                ),
+                controller: _vaultPathCtrl,
+                onOpen: _busy ? null : _doOpenVault,
+              ),
               _Route.recordList => _RecordListView(
-                  vaultPath: _openedVaultPath ?? '',
-                  items: _records,
-                  onOpenRecord: _busy ? null : _openRecord,
-                  onRefresh: _busy ? null : _refreshList,
-                ),
+                vaultPath: _openedVaultPath ?? '',
+                items: _records,
+                onOpenRecord: _busy ? null : _openRecord,
+                onRefresh: _busy ? null : _refreshList,
+              ),
               _Route.recordView => _RecordView(
-                  record: _currentRecord,
-                  onBack: _busy
-                      ? null
-                      : () {
-                          setState(() {
-                            _currentRecord = null;
-                            _route = _Route.recordList;
-                          });
-                        },
-                ),
+                record: _currentRecord,
+                onBack: _busy
+                    ? null
+                    : () {
+                        setState(() {
+                          _currentRecord = null;
+                          _route = _Route.recordList;
+                        });
+                      },
+              ),
             },
           ),
         ],
@@ -296,10 +289,7 @@ class _OpenVaultView extends StatelessWidget {
   final TextEditingController controller;
   final VoidCallback? onOpen;
 
-  const _OpenVaultView({
-    required this.controller,
-    required this.onOpen,
-  });
+  const _OpenVaultView({required this.controller, required this.onOpen});
 
   @override
   Widget build(BuildContext context) {
@@ -363,10 +353,7 @@ class _RecordListView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Vault: $vaultPath',
-          style: const TextStyle(fontSize: 12),
-        ),
+        Text('Vault: $vaultPath', style: const TextStyle(fontSize: 12)),
         const SizedBox(height: 12),
         Row(
           children: [
@@ -401,7 +388,9 @@ class _RecordListView extends StatelessWidget {
                           '${tagText.isEmpty ? '' : ' | tags: $tagText'}',
                         ),
                         trailing: const Icon(Icons.chevron_right),
-                        onTap: onOpenRecord == null ? null : () => onOpenRecord!(it.id),
+                        onTap: onOpenRecord == null
+                            ? null
+                            : () => onOpenRecord!(it.id),
                       );
                     },
                   ),
@@ -416,10 +405,7 @@ class _RecordView extends StatelessWidget {
   final RecordViewModel? record;
   final VoidCallback? onBack;
 
-  const _RecordView({
-    required this.record,
-    required this.onBack,
-  });
+  const _RecordView({required this.record, required this.onBack});
 
   @override
   Widget build(BuildContext context) {
@@ -442,7 +428,10 @@ class _RecordView extends StatelessWidget {
             Expanded(
               child: Text(
                 r.id,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -521,4 +510,3 @@ class _BusyOverlay extends StatelessWidget {
     );
   }
 }
-

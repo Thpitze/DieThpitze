@@ -1,4 +1,4 @@
-﻿/* lib/app/vault/vault_stats_card.dart */
+/* lib/app/vault/vault_stats_card.dart */
 import 'package:flutter/material.dart';
 
 import 'vault_dashboard_controller.dart';
@@ -20,13 +20,18 @@ class VaultStatsCard extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Vault stats', style: TextStyle(fontWeight: FontWeight.w700)),
+            const Text(
+              'Vault stats',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
             const SizedBox(height: 8),
             _kv('Vault state', 'LOCKED'),
             _kv('Vault path', snap.vaultPath ?? '—'),
@@ -42,7 +47,9 @@ class VaultStatsCard extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
           borderRadius: BorderRadius.circular(12),
         ),
         child: const Text('No vault mounted.'),
@@ -99,7 +106,10 @@ class VaultStatsCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 110, child: Text(k, style: const TextStyle(fontWeight: FontWeight.w600))),
+          SizedBox(
+            width: 110,
+            child: Text(k, style: const TextStyle(fontWeight: FontWeight.w600)),
+          ),
           Expanded(child: Text(v)),
         ],
       ),

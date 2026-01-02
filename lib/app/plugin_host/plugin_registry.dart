@@ -7,19 +7,18 @@ class PluginRegistration {
   final ThpitzePlugin plugin;
   final Set<PluginCapability> grants;
 
-  PluginRegistration({
-    required this.plugin,
-    required this.grants,
-  });
+  PluginRegistration({required this.plugin, required this.grants});
 }
 
 class PluginRegistry {
   final Map<String, PluginRegistration> _byId = {};
 
-  List<PluginRegistration> get all =>
-      _byId.values.toList(growable: false);
+  List<PluginRegistration> get all => _byId.values.toList(growable: false);
 
-  void register(ThpitzePlugin plugin, {Set<PluginCapability> grants = const {}}) {
+  void register(
+    ThpitzePlugin plugin, {
+    Set<PluginCapability> grants = const {},
+  }) {
     final d = plugin.descriptor;
 
     if (d.hostApiMajor != hostApiMajor) {

@@ -1,4 +1,4 @@
-﻿/* lib/app/events/vault_events.dart */
+/* lib/app/events/vault_events.dart */
 import 'app_event.dart';
 
 class VaultOpened extends AppEvent {

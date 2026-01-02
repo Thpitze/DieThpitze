@@ -8,8 +8,5 @@ class PluginHostServices {
   final AppEventBus eventBus;
   final WorkingMemory workingMemory;
 
-  PluginHostServices({
-    required this.eventBus,
-    required this.workingMemory,
-  });
+  PluginHostServices({required this.eventBus, required this.workingMemory});
 }

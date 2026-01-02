@@ -24,8 +24,8 @@ class CoreAdapterImpl implements CoreAdapter {
   CoreAdapterImpl._({
     required CoreBootstrap bootstrap,
     required RecordService records,
-  })  : _bootstrap = bootstrap,
-        _records = records;
+  }) : _bootstrap = bootstrap,
+       _records = records;
 
   factory CoreAdapterImpl.defaultForApp() {
     final clock = SystemClock();
@@ -35,15 +35,9 @@ class CoreAdapterImpl implements CoreAdapter {
       clock: clock,
     );
 
-    final records = RecordService(
-      codec: RecordCodec(),
-      clock: clock,
-    );
+    final records = RecordService(codec: RecordCodec(), clock: clock);
 
-    return CoreAdapterImpl._(
-      bootstrap: bootstrap,
-      records: records,
-    );
+    return CoreAdapterImpl._(bootstrap: bootstrap, records: records);
   }
 
   CoreContext get _requireCtx {
@@ -101,7 +95,9 @@ class CoreAdapterImpl implements CoreAdapter {
 
   // --- NEW: used by RecordsLite plugin ---
 
-  Future<RecordViewModel> createNote({String bodyMarkdown = 'New entry'}) async {
+  Future<RecordViewModel> createNote({
+    String bodyMarkdown = 'New entry',
+  }) async {
     final ctx = _requireCtx;
 
     final Record r = _records.create(

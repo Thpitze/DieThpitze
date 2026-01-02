@@ -7,11 +7,7 @@ class ThpitzeApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return const MaterialApp(
       title: 'Thpitze',
-      home: Scaffold(
-        body: Center(
-          child: Text('Thpitze – empty shell'),
-        ),
-      ),
+      home: Scaffold(body: Center(child: Text('Thpitze – empty shell'))),
     );
   }
 }

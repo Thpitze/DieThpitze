@@ -4,8 +4,9 @@ import 'dart:async';
 import 'app_event.dart';
 
 class AppEventBus {
-  final StreamController<AppEvent> _ctrl =
-      StreamController<AppEvent>.broadcast(sync: true);
+  final StreamController<AppEvent> _ctrl = StreamController<AppEvent>.broadcast(
+    sync: true,
+  );
 
   void publish<E extends AppEvent>(E event) {
     if (_ctrl.isClosed) return;

@@ -1,4 +1,4 @@
-﻿/* lib/app/settings/app_settings.dart */
+/* lib/app/settings/app_settings.dart */
 import 'dart:convert';
 import 'dart:io';
 
@@ -16,10 +16,10 @@ class AppSettings {
   });
 
   factory AppSettings.defaults() => const AppSettings(
-        lastVaultPath: null,
-        recentVaultPaths: <String>[],
-        vaultTimeoutSeconds: 0,
-      );
+    lastVaultPath: null,
+    recentVaultPaths: <String>[],
+    vaultTimeoutSeconds: 0,
+  );
 
   AppSettings copyWith({
     String? lastVaultPath,
@@ -28,7 +28,9 @@ class AppSettings {
     int? vaultTimeoutSeconds,
   }) {
     return AppSettings(
-      lastVaultPath: clearLastVaultPath ? null : (lastVaultPath ?? this.lastVaultPath),
+      lastVaultPath: clearLastVaultPath
+          ? null
+          : (lastVaultPath ?? this.lastVaultPath),
       recentVaultPaths: recentVaultPaths ?? this.recentVaultPaths,
       vaultTimeoutSeconds: vaultTimeoutSeconds ?? this.vaultTimeoutSeconds,
     );
@@ -56,7 +58,9 @@ class AppSettings {
     for (final s in current) {
       final sn = normalizeVaultPath(s);
       if (sn.isEmpty) continue;
-      if (sn.toLowerCase() == n.toLowerCase()) continue; // de-dupe case-insensitive
+      if (sn.toLowerCase() == n.toLowerCase()) {
+        continue; // de-dupe case-insensitive
+      }
       next.add(sn);
       if (next.length >= maxItems) break;
     }
@@ -78,10 +82,10 @@ class AppSettings {
   }
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'lastVaultPath': lastVaultPath,
-        'recentVaultPaths': recentVaultPaths,
-        'vaultTimeoutSeconds': vaultTimeoutSeconds,
-      };
+    'lastVaultPath': lastVaultPath,
+    'recentVaultPaths': recentVaultPaths,
+    'vaultTimeoutSeconds': vaultTimeoutSeconds,
+  };
 
   factory AppSettings.fromJson(Map<String, Object?> json) {
     final lastVaultPath = json['lastVaultPath'];
@@ -101,7 +105,9 @@ class AppSettings {
     }
 
     return AppSettings(
-      lastVaultPath: lastVaultPath is String && lastVaultPath.trim().isNotEmpty ? normalizeVaultPath(lastVaultPath) : null,
+      lastVaultPath: lastVaultPath is String && lastVaultPath.trim().isNotEmpty
+          ? normalizeVaultPath(lastVaultPath)
+          : null,
       recentVaultPaths: recent,
       vaultTimeoutSeconds: vts is int ? vts : 0,
     );
@@ -127,7 +133,9 @@ class AppSettingsStore {
         // Fallbacks (rare, but don't crash)
         final local = Platform.environment['LOCALAPPDATA'];
         baseDir = Directory(
-          (local != null && local.trim().isNotEmpty) ? local : Directory.current.path,
+          (local != null && local.trim().isNotEmpty)
+              ? local
+              : Directory.current.path,
         );
       }
       baseDir = Directory('${baseDir.path}\\Thpitze');

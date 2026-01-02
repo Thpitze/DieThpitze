@@ -1,4 +1,4 @@
-﻿/* lib/app/vault/vault_dashboard_controller.dart */
+/* lib/app/vault/vault_dashboard_controller.dart */
 import 'package:flutter/foundation.dart';
 
 import '../core_adapter_impl.dart';
@@ -25,7 +25,10 @@ class VaultDashboardSnapshot {
   bool get hasVaultOpen => vaultKind == VaultStateKind.open;
   bool get isLocked => vaultKind == VaultStateKind.locked;
 
-  factory VaultDashboardSnapshot.initial({required VaultStateKind kind, required String? vaultPath}) {
+  factory VaultDashboardSnapshot.initial({
+    required VaultStateKind kind,
+    required String? vaultPath,
+  }) {
     return VaultDashboardSnapshot(
       vaultKind: kind,
       vaultPath: vaultPath,
@@ -63,12 +66,12 @@ class VaultDashboardController extends ChangeNotifier {
   VaultDashboardController({
     required CoreAdapterImpl adapter,
     required VaultController vault,
-  })  : _adapter = adapter,
-        _vault = vault,
-        _snap = VaultDashboardSnapshot.initial(
-          kind: vault.state.kind,
-          vaultPath: vault.state.vaultPath,
-        ) {
+  }) : _adapter = adapter,
+       _vault = vault,
+       _snap = VaultDashboardSnapshot.initial(
+         kind: vault.state.kind,
+         vaultPath: vault.state.vaultPath,
+       ) {
     _vault.addListener(_onVaultStateChanged);
   }
 
@@ -119,11 +122,7 @@ class VaultDashboardController extends ChangeNotifier {
     }
 
     // Open: update state and optionally auto-refresh.
-    _snap = _snap.copyWith(
-      vaultKind: kind,
-      vaultPath: path,
-      clearError: true,
-    );
+    _snap = _snap.copyWith(vaultKind: kind, vaultPath: path, clearError: true);
     notifyListeners();
 
     // Best-effort refresh (don’t await here; UI remains responsive)
