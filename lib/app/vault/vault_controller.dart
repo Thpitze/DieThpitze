@@ -38,10 +38,10 @@ class VaultController extends ChangeNotifier {
     required WorkingMemory workingMemory,
     required AppEventBus eventBus,
     required AppSettingsStore settingsStore,
-  })  : _adapter = adapter,
-        _workingMemory = workingMemory,
-        _eventBus = eventBus,
-        _settingsStore = settingsStore;
+  }) : _adapter = adapter,
+       _workingMemory = workingMemory,
+       _eventBus = eventBus,
+       _settingsStore = settingsStore;
 
   VaultState get state => _state;
 
@@ -175,7 +175,10 @@ class VaultController extends ChangeNotifier {
     _setState(VaultState.opening(path));
 
     try {
-      await _adapter.openVault(vaultPath: path, password: password.trim().isEmpty ? null : password);
+      await _adapter.openVault(
+        vaultPath: path,
+        password: password.trim().isEmpty ? null : password,
+      );
 
       // Always remember for session (until lock/close/app exit)
       _sessionPassword = password.trim().isEmpty ? null : password;
@@ -211,8 +214,9 @@ class VaultController extends ChangeNotifier {
 
     // Migration hook (P17 Step 6):
     // If profile.json does not exist yet, create defaults, then seed timeout from legacy host setting once.
-    final profileFile =
-        File(_joinPath(root.path, VaultProfileService.profileFileName));
+    final profileFile = File(
+      _joinPath(root.path, VaultProfileService.profileFileName),
+    );
     final existed = await profileFile.exists();
 
     final loaded = await _profileService.loadOrCreate(root);
@@ -273,7 +277,9 @@ class VaultController extends ChangeNotifier {
     if (trimmed.isEmpty) return;
 
     _settings = _settings.copyWith(
-      recentVaultPaths: _settings.recentVaultPaths.where((p) => p != trimmed).toList(growable: false),
+      recentVaultPaths: _settings.recentVaultPaths
+          .where((p) => p != trimmed)
+          .toList(growable: false),
     );
     await _settingsStore.save(_settings);
     notifyListeners();
@@ -284,10 +290,13 @@ class VaultController extends ChangeNotifier {
     if (path == null || path.trim().isEmpty) return;
 
     // Persist to vault profile when mounted; otherwise fall back to legacy host setting.
-    if (_state.kind == VaultStateKind.open || _state.kind == VaultStateKind.locked) {
+    if (_state.kind == VaultStateKind.open ||
+        _state.kind == VaultStateKind.locked) {
       final root = Directory(path);
       final cur = await _profileService.loadOrCreate(root);
-      final next = cur.copyWith(security: cur.security.copyWith(timeoutSeconds: seconds));
+      final next = cur.copyWith(
+        security: cur.security.copyWith(timeoutSeconds: seconds),
+      );
       await _profileService.save(root, next);
       _profile = next;
     } else {

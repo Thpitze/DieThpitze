@@ -17,9 +17,9 @@ class NewVaultWizard extends StatefulWidget {
   const NewVaultWizard({super.key});
 
   static Future<String?> show(BuildContext context) {
-    return Navigator.of(context).push<String?>(
-      MaterialPageRoute(builder: (_) => const NewVaultWizard()),
-    );
+    return Navigator.of(
+      context,
+    ).push<String?>(MaterialPageRoute(builder: (_) => const NewVaultWizard()));
   }
 
   @override
@@ -57,7 +57,9 @@ class _NewVaultWizardState extends State<NewVaultWizard> {
     final decoded = jsonDecode(f.readAsStringSync());
     if (decoded is! Map) throw Exception('vault.json invalid JSON');
     final vaultId = decoded['vaultId'];
-    if (vaultId is! String || vaultId.trim().isEmpty) throw Exception('vault.json missing vaultId');
+    if (vaultId is! String || vaultId.trim().isEmpty) {
+      throw Exception('vault.json missing vaultId');
+    }
     return vaultId;
   }
 
@@ -128,10 +130,12 @@ class _NewVaultWizardState extends State<NewVaultWizard> {
         return;
       }
 
-      Directory('${root.path}${Platform.pathSeparator}${RecordService.recordsDirName}')
-          .createSync(recursive: true);
-      Directory('${root.path}${Platform.pathSeparator}${RecordService.trashDirName}')
-          .createSync(recursive: true);
+      Directory(
+        '${root.path}${Platform.pathSeparator}${RecordService.recordsDirName}',
+      ).createSync(recursive: true);
+      Directory(
+        '${root.path}${Platform.pathSeparator}${RecordService.trashDirName}',
+      ).createSync(recursive: true);
 
       // Creates vault.json
       final idSvc = VaultIdentityService();
@@ -195,7 +199,10 @@ class _NewVaultWizardState extends State<NewVaultWizard> {
             ],
           ),
           const SizedBox(height: 16),
-          const Text('Security mode', style: TextStyle(fontWeight: FontWeight.w600)),
+          const Text(
+            'Security mode',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
           const SizedBox(height: 8),
           AbsorbPointer(
             absorbing: _busy,
@@ -234,19 +241,28 @@ class _NewVaultWizardState extends State<NewVaultWizard> {
             ),
           ],
           const SizedBox(height: 16),
-          const Text('Inactivity timeout (vault-scoped)', style: TextStyle(fontWeight: FontWeight.w600)),
+          const Text(
+            'Inactivity timeout (vault-scoped)',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
           const SizedBox(height: 8),
           DropdownButtonFormField<int>(
             initialValue: _timeoutSeconds,
             items: _timeoutItems(),
-            onChanged: _busy ? null : (v) => setState(() => _timeoutSeconds = v ?? 60),
+            onChanged: _busy
+                ? null
+                : (v) => setState(() => _timeoutSeconds = v ?? 60),
             decoration: const InputDecoration(labelText: 'Timeout'),
           ),
           const SizedBox(height: 16),
           FilledButton.icon(
             onPressed: _busy ? null : _create,
             icon: _busy
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : const Icon(Icons.check),
             label: Text(_busy ? 'Creating...' : 'Create vault'),
           ),

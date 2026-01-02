@@ -9,12 +9,12 @@ import 'core_adapter_impl.dart';
 import 'plugin_host/plugin_host_services.dart';
 import 'plugins/ui_plugin.dart';
 import 'settings/app_settings.dart';
-import 'vault/change_vault_security_dialog.dart';
 import 'vault/new_vault_wizard.dart';
 import 'vault/vault_controller.dart';
 import 'vault/vault_dashboard_controller.dart';
 import 'vault/vault_state.dart';
 import 'vault/vault_stats_card.dart';
+import 'vault/vault_security_dialog.dart';
 
 class AppShell extends StatefulWidget {
   final PluginHostServices hostServices;
@@ -128,9 +128,9 @@ class _AppShellState extends State<AppShell> {
     if (!mounted) return;
 
     if (_vault.state.kind == VaultStateKind.error) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unlock failed')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Unlock failed')));
     }
   }
 
@@ -152,7 +152,9 @@ class _AppShellState extends State<AppShell> {
     }
 
     if (_vault.state.kind == VaultStateKind.error) {
-      messenger.showSnackBar(const SnackBar(content: Text('Failed to open vault')));
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Failed to open vault')),
+      );
     }
   }
 
@@ -161,10 +163,8 @@ class _AppShellState extends State<AppShell> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => _VaultOptionsSheet(
-        vault: _vault,
-        onUnlock: () => _unlockFlow(),
-      ),
+      builder: (_) =>
+          _VaultOptionsSheet(vault: _vault, onUnlock: () => _unlockFlow()),
     );
   }
 
@@ -209,9 +209,9 @@ class _AppShellState extends State<AppShell> {
                   _touch();
                   await _vault.lockNow(reason: 'manual');
                   if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Vault locked')),
-                  );
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(const SnackBar(content: Text('Vault locked')));
                 },
                 icon: const Icon(Icons.lock),
               ),
@@ -234,7 +234,10 @@ class _AppShellState extends State<AppShell> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Vault', style: Theme.of(context).textTheme.titleLarge),
+                    Text(
+                      'Vault',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                     const SizedBox(height: 8),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -249,7 +252,10 @@ class _AppShellState extends State<AppShell> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Text('Plugins', style: Theme.of(context).textTheme.titleLarge),
+                    Text(
+                      'Plugins',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                     const SizedBox(height: 8),
                     Expanded(
                       child: ListView.builder(
@@ -268,8 +274,11 @@ class _AppShellState extends State<AppShell> {
                                         MaterialPageRoute(
                                           builder: (_) => plugin.buildScreen(
                                             adapter: _adapter,
-                                            eventBus: widget.hostServices.eventBus,
-                                            workingMemory: widget.hostServices.workingMemory,
+                                            eventBus:
+                                                widget.hostServices.eventBus,
+                                            workingMemory: widget
+                                                .hostServices
+                                                .workingMemory,
                                           ),
                                         ),
                                       );
@@ -300,10 +309,7 @@ class _VaultOptionsSheet extends StatefulWidget {
   final VaultController vault;
   final Future<void> Function() onUnlock;
 
-  const _VaultOptionsSheet({
-    required this.vault,
-    required this.onUnlock,
-  });
+  const _VaultOptionsSheet({required this.vault, required this.onUnlock});
 
   @override
   State<_VaultOptionsSheet> createState() => _VaultOptionsSheetState();
@@ -347,7 +353,9 @@ class _VaultOptionsSheetState extends State<_VaultOptionsSheet> {
     }
 
     if (widget.vault.state.kind == VaultStateKind.error) {
-      messenger.showSnackBar(const SnackBar(content: Text('Failed to open vault')));
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Failed to open vault')),
+      );
     }
 
     setState(() {});
@@ -361,12 +369,16 @@ class _VaultOptionsSheetState extends State<_VaultOptionsSheet> {
 
     final String? mountedPath = vs.vaultPath;
     final bool hasMountedVault =
-        mountedPath != null && mountedPath.trim().isNotEmpty && vs.kind != VaultStateKind.closed;
+        mountedPath != null &&
+        mountedPath.trim().isNotEmpty &&
+        vs.kind != VaultStateKind.closed;
 
-    final bool isPasswordProtected =
-        hasMountedVault ? File(_joinFs(mountedPath, 'auth.json')).existsSync() : false;
+    final bool isPasswordProtected = hasMountedVault
+        ? File(_joinFs(mountedPath, 'auth.json')).existsSync()
+        : false;
 
-    final bool canChangeSecurity = vs.kind == VaultStateKind.open || vs.kind == VaultStateKind.locked;
+    final bool canChangeSecurity =
+        vs.kind == VaultStateKind.open || vs.kind == VaultStateKind.locked;
 
     String vaultStateLabel;
     switch (vs.kind) {
@@ -387,12 +399,17 @@ class _VaultOptionsSheetState extends State<_VaultOptionsSheet> {
         break;
     }
 
-    final String passwordProtectionLabel =
-        hasMountedVault ? (isPasswordProtected ? 'Enabled' : 'Disabled') : '—';
+    final String passwordProtectionLabel = hasMountedVault
+        ? (isPasswordProtected ? 'Enabled' : 'Disabled')
+        : '—';
 
     final int currentMinutes = (widget.vault.vaultTimeoutSeconds / 60).round();
-    final int dropdownValue = _timeoutMinutes.contains(currentMinutes) ? currentMinutes : 0;
-    final String timeoutLabel = dropdownValue == 0 ? 'Off' : '$dropdownValue min';
+    final int dropdownValue = _timeoutMinutes.contains(currentMinutes)
+        ? currentMinutes
+        : 0;
+    final String timeoutLabel = dropdownValue == 0
+        ? 'Off'
+        : '$dropdownValue min';
 
     return Padding(
       padding: EdgeInsets.only(
@@ -407,7 +424,10 @@ class _VaultOptionsSheetState extends State<_VaultOptionsSheet> {
           children: [
             Row(
               children: [
-                Text('Vault options', style: Theme.of(context).textTheme.titleLarge),
+                Text(
+                  'Vault options',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
                 const Spacer(),
                 IconButton(
                   tooltip: 'Close',
@@ -446,21 +466,13 @@ class _VaultOptionsSheetState extends State<_VaultOptionsSheet> {
                 OutlinedButton.icon(
                   onPressed: canChangeSecurity
                       ? () async {
-                          await showDialog<void>(
-                            context: context,
-                            builder: (_) => ChangeVaultSecurityDialog(vault: widget.vault),
-                          );
+                          await VaultSecurityDialog.show(context, widget.vault);
                           if (!mounted) return;
                           setState(() {});
                         }
                       : null,
-                  icon: const Icon(Icons.security_outlined),
-                  label: const Text('Change vault profile/security…'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: null,
-                  icon: const Icon(Icons.lock_outline),
-                  label: const Text('Encryption: Off (not implemented)'),
+                  icon: const Icon(Icons.security),
+                  label: const Text('Vault security…'),
                 ),
               ],
             ),
@@ -471,7 +483,10 @@ class _VaultOptionsSheetState extends State<_VaultOptionsSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Current vault', style: Theme.of(context).textTheme.titleMedium),
+                    Text(
+                      'Current vault',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                     const SizedBox(height: 8),
                     Text('Path: ${hasMountedVault ? mountedPath : "—"}'),
                     Text('State: $vaultStateLabel'),
@@ -517,10 +532,12 @@ class _VaultOptionsSheetState extends State<_VaultOptionsSheet> {
                 DropdownButton<int>(
                   value: dropdownValue,
                   items: _timeoutMinutes
-                      .map((m) => DropdownMenuItem<int>(
-                            value: m,
-                            child: Text(m == 0 ? 'Off' : '$m min'),
-                          ))
+                      .map(
+                        (m) => DropdownMenuItem<int>(
+                          value: m,
+                          child: Text(m == 0 ? 'Off' : '$m min'),
+                        ),
+                      )
                       .toList(growable: false),
                   onChanged: (val) async {
                     final v = val ?? 0;
@@ -551,7 +568,9 @@ class _VaultOptionsSheetState extends State<_VaultOptionsSheet> {
                   label: const Text('Lock now'),
                 ),
                 OutlinedButton.icon(
-                  onPressed: (vs.kind == VaultStateKind.locked) ? () async => widget.onUnlock() : null,
+                  onPressed: (vs.kind == VaultStateKind.locked)
+                      ? () async => widget.onUnlock()
+                      : null,
                   icon: const Icon(Icons.lock_open),
                   label: const Text('Unlock'),
                 ),
@@ -571,7 +590,10 @@ class _VaultOptionsSheetState extends State<_VaultOptionsSheet> {
             const SizedBox(height: 18),
             Align(
               alignment: Alignment.centerLeft,
-              child: Text('Recent vaults', style: Theme.of(context).textTheme.titleMedium),
+              child: Text(
+                'Recent vaults',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
             ),
             const SizedBox(height: 8),
             if (recents.isEmpty)
@@ -590,7 +612,11 @@ class _VaultOptionsSheetState extends State<_VaultOptionsSheet> {
                     return ListTile(
                       dense: true,
                       leading: const Icon(Icons.folder_outlined),
-                      title: Text(p, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      title: Text(
+                        p,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                       onTap: () async {
                         setState(() => _pathCtrl.text = p);
                         await _mountPath(p);
@@ -647,10 +673,7 @@ class _UnlockDialogState extends State<_UnlockDialog> {
           onPressed: () => Navigator.of(context).pop(null),
           child: const Text('Cancel'),
         ),
-        ElevatedButton(
-          onPressed: _submit,
-          child: const Text('Unlock'),
-        ),
+        ElevatedButton(onPressed: _submit, child: const Text('Unlock')),
       ],
     );
   }

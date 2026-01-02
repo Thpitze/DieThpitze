@@ -1,4 +1,4 @@
-﻿/* lib/app/vault/vault_state.dart */
+/* lib/app/vault/vault_state.dart */
 
 enum VaultStateKind { closed, opening, open, locked, error }
 
@@ -20,44 +20,44 @@ class VaultState {
   });
 
   const VaultState.closed()
-      : this._(
-          kind: VaultStateKind.closed,
-          vaultPath: null,
-          errorMessage: null,
-          lockReason: null,
-        );
+    : this._(
+        kind: VaultStateKind.closed,
+        vaultPath: null,
+        errorMessage: null,
+        lockReason: null,
+      );
 
   const VaultState.opening(String path)
-      : this._(
-          kind: VaultStateKind.opening,
-          vaultPath: path,
-          errorMessage: null,
-          lockReason: null,
-        );
+    : this._(
+        kind: VaultStateKind.opening,
+        vaultPath: path,
+        errorMessage: null,
+        lockReason: null,
+      );
 
   const VaultState.open(String path)
-      : this._(
-          kind: VaultStateKind.open,
-          vaultPath: path,
-          errorMessage: null,
-          lockReason: null,
-        );
+    : this._(
+        kind: VaultStateKind.open,
+        vaultPath: path,
+        errorMessage: null,
+        lockReason: null,
+      );
 
   const VaultState.locked(String path, {String reason = 'unknown'})
-      : this._(
-          kind: VaultStateKind.locked,
-          vaultPath: path,
-          errorMessage: null,
-          lockReason: reason,
-        );
+    : this._(
+        kind: VaultStateKind.locked,
+        vaultPath: path,
+        errorMessage: null,
+        lockReason: reason,
+      );
 
   const VaultState.error(String path, String message)
-      : this._(
-          kind: VaultStateKind.error,
-          vaultPath: path,
-          errorMessage: message,
-          lockReason: null,
-        );
+    : this._(
+        kind: VaultStateKind.error,
+        vaultPath: path,
+        errorMessage: message,
+        lockReason: null,
+      );
 
   bool get isOpen => kind == VaultStateKind.open;
   bool get isClosed => kind == VaultStateKind.closed;

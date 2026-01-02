@@ -14,7 +14,8 @@ class ChangeVaultSecurityDialog extends StatefulWidget {
   const ChangeVaultSecurityDialog({super.key, required this.vault});
 
   @override
-  State<ChangeVaultSecurityDialog> createState() => _ChangeVaultSecurityDialogState();
+  State<ChangeVaultSecurityDialog> createState() =>
+      _ChangeVaultSecurityDialogState();
 }
 
 class _ChangeVaultSecurityDialogState extends State<ChangeVaultSecurityDialog> {
@@ -116,11 +117,7 @@ class _ChangeVaultSecurityDialogState extends State<ChangeVaultSecurityDialog> {
       // Verify password WITHOUT unlocking/locking UI state:
       // If invalid, VaultAuthService throws InvalidCredentialsException.
       const authSvc = VaultAuthService();
-      authSvc.requireAuth(
-        vaultRoot: root,
-        vaultId: vaultId,
-        password: current,
-      );
+      authSvc.requireAuth(vaultRoot: root, vaultId: vaultId, password: current);
 
       // Remove auth.json
       authSvc.disablePasswordProtection(vaultRoot: root);
@@ -140,7 +137,8 @@ class _ChangeVaultSecurityDialogState extends State<ChangeVaultSecurityDialog> {
   @override
   Widget build(BuildContext context) {
     final path = _vaultPath ?? '(no vault)';
-    final mounted = widget.vault.state.kind == VaultStateKind.open ||
+    final mounted =
+        widget.vault.state.kind == VaultStateKind.open ||
         widget.vault.state.kind == VaultStateKind.locked;
 
     final protected = (_vaultPath != null) ? _hasAuthJson(_vaultPath!) : false;
@@ -154,10 +152,7 @@ class _ChangeVaultSecurityDialogState extends State<ChangeVaultSecurityDialog> {
           children: [
             Align(
               alignment: Alignment.centerLeft,
-              child: Text(
-                'Vault: $path',
-                style: const TextStyle(fontSize: 12),
-              ),
+              child: Text('Vault: $path', style: const TextStyle(fontSize: 12)),
             ),
             const SizedBox(height: 12),
             Align(
@@ -168,7 +163,9 @@ class _ChangeVaultSecurityDialogState extends State<ChangeVaultSecurityDialog> {
               ),
             ),
             const SizedBox(height: 12),
-            if (!mounted) const Text('No vault mounted.') else ...[
+            if (!mounted)
+              const Text('No vault mounted.')
+            else ...[
               if (!protected) ...[
                 const Align(
                   alignment: Alignment.centerLeft,
@@ -185,7 +182,9 @@ class _ChangeVaultSecurityDialogState extends State<ChangeVaultSecurityDialog> {
                 TextField(
                   controller: _newPw2Ctrl,
                   obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Repeat new password'),
+                  decoration: const InputDecoration(
+                    labelText: 'Repeat new password',
+                  ),
                   enabled: !_busy,
                 ),
               ] else ...[
@@ -197,7 +196,9 @@ class _ChangeVaultSecurityDialogState extends State<ChangeVaultSecurityDialog> {
                 TextField(
                   controller: _currentPwCtrl,
                   obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Current password'),
+                  decoration: const InputDecoration(
+                    labelText: 'Current password',
+                  ),
                   enabled: !_busy,
                 ),
               ],
@@ -214,14 +215,22 @@ class _ChangeVaultSecurityDialogState extends State<ChangeVaultSecurityDialog> {
           FilledButton(
             onPressed: _busy ? null : _enablePassword,
             child: _busy
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : const Text('Enable'),
           ),
         if (mounted && protected)
           FilledButton(
             onPressed: _busy ? null : _disablePassword,
             child: _busy
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : const Text('Disable'),
           ),
       ],
