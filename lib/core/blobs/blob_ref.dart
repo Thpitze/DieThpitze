@@ -5,9 +5,5 @@ class BlobRef {
   final int sizeBytes;
   final String? mimeType;
 
-  const BlobRef({
-    required this.sha256,
-    required this.sizeBytes,
-    this.mimeType,
-  });
+  const BlobRef({required this.sha256, required this.sizeBytes, this.mimeType});
 }

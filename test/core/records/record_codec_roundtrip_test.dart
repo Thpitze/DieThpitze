@@ -45,7 +45,8 @@ Trailing spaces here ->
       // RecordCodec currently normalizes leading newlines in the body. We lock that behavior
       // by comparing normalized bodies, while keeping all other bytes (including trailing spaces)
       // intact.
-      String normalizeLeadingNewlines(String s) => s.replaceFirst(RegExp(r'^\n+'), '\n');
+      String normalizeLeadingNewlines(String s) =>
+          s.replaceFirst(RegExp(r'^\n+'), '\n');
 
       expect(
         normalizeLeadingNewlines(r2.bodyMarkdown),
@@ -69,10 +70,7 @@ This body never starts properly
 
       final codec = RecordCodec();
 
-      expect(
-        () => codec.decode(broken),
-        throwsA(isA<VaultInvalidException>()),
-      );
+      expect(() => codec.decode(broken), throwsA(isA<VaultInvalidException>()));
     });
   });
 }

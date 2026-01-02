@@ -8,7 +8,9 @@ class RecordCodec {
   static const String _sep = '---';
 
   String encode(Record r) {
-    final tagsYaml = r.tags.map((t) => '  - ${_escapeYamlScalar(t)}').join('\n');
+    final tagsYaml = r.tags
+        .map((t) => '  - ${_escapeYamlScalar(t)}')
+        .join('\n');
 
     final frontmatter = StringBuffer()
       ..writeln(_sep)
@@ -45,7 +47,9 @@ class RecordCodec {
     String reqString(String key) {
       final v = parsed[key];
       if (v is! String || v.trim().isEmpty) {
-        throw VaultInvalidException('Record frontmatter missing/invalid "$key".');
+        throw VaultInvalidException(
+          'Record frontmatter missing/invalid "$key".',
+        );
       }
       return v;
     }
@@ -67,7 +71,9 @@ class RecordCodec {
       // ignore
     } else {
       // allow tags: [] which becomes YamlList; other types are invalid
-      throw VaultInvalidException('Record frontmatter "tags" must be a YAML list.');
+      throw VaultInvalidException(
+        'Record frontmatter "tags" must be a YAML list.',
+      );
     }
 
     return Record(
@@ -84,12 +90,16 @@ class RecordCodec {
     final normalized = content.replaceAll('\r\n', '\n');
 
     if (!normalized.startsWith('$_sep\n')) {
-      throw VaultInvalidException('Record file must start with YAML frontmatter (---).');
+      throw VaultInvalidException(
+        'Record file must start with YAML frontmatter (---).',
+      );
     }
 
     final end = normalized.indexOf('\n$_sep\n', _sep.length + 1);
     if (end < 0) {
-      throw VaultInvalidException('Record YAML frontmatter is not terminated with ---.');
+      throw VaultInvalidException(
+        'Record YAML frontmatter is not terminated with ---.',
+      );
     }
 
     final yamlStart = _sep.length + 1; // after first '---\n'

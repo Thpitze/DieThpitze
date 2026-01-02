@@ -15,14 +15,11 @@ class BlobStorage {
   BlobStorage({required this.vaultRoot});
 
   Directory get _baseDir => Directory(
-        '${vaultRoot.path}${Platform.pathSeparator}blobs'
-        '${Platform.pathSeparator}sha256',
-      );
+    '${vaultRoot.path}${Platform.pathSeparator}blobs'
+    '${Platform.pathSeparator}sha256',
+  );
 
-  Future<BlobRef> putBytes(
-    Uint8List bytes, {
-    String? mimeType,
-  }) async {
+  Future<BlobRef> putBytes(Uint8List bytes, {String? mimeType}) async {
     final digest = sha256.convert(bytes);
     final hash = digest.toString(); // lowercase hex
     final size = bytes.length;
@@ -35,7 +32,9 @@ class BlobStorage {
     await file.parent.create(recursive: true);
 
     // Atomic write: temp file then rename.
-    final tmp = File('${file.path}.tmp.${DateTime.now().microsecondsSinceEpoch}');
+    final tmp = File(
+      '${file.path}.tmp.${DateTime.now().microsecondsSinceEpoch}',
+    );
     await tmp.writeAsBytes(bytes, flush: true);
 
     try {

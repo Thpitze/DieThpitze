@@ -24,18 +24,23 @@ class VaultAuthConfig {
   });
 
   const VaultAuthConfig.unauthenticated()
-      : this._(mode: VaultAuthMode.unauthenticated, salt: null, mac: null, iterations: 0);
+    : this._(
+        mode: VaultAuthMode.unauthenticated,
+        salt: null,
+        mac: null,
+        iterations: 0,
+      );
 
   const VaultAuthConfig.passwordProtected({
     required Uint8List salt,
     required Uint8List mac,
     required int iterations,
   }) : this._(
-          mode: VaultAuthMode.passwordProtected,
-          salt: salt,
-          mac: mac,
-          iterations: iterations,
-        );
+         mode: VaultAuthMode.passwordProtected,
+         salt: salt,
+         mac: mac,
+         iterations: iterations,
+       );
 
   static const String fileName = 'auth.json';
 
@@ -47,7 +52,10 @@ class VaultAuthConfig {
     final obj = jsonDecode(raw) as Map<String, dynamic>;
 
     final mode = (obj['mode'] as String?)?.trim().toLowerCase();
-    if (mode == null || mode.isEmpty || mode == 'none' || mode == 'unauthenticated') {
+    if (mode == null ||
+        mode.isEmpty ||
+        mode == 'none' ||
+        mode == 'unauthenticated') {
       return const VaultAuthConfig.unauthenticated();
     }
 
@@ -76,7 +84,11 @@ class VaultAuthConfig {
       throw VaultCorruptException('auth.json iterations too low: $iters');
     }
 
-    return VaultAuthConfig.passwordProtected(salt: salt, mac: mac, iterations: iters);
+    return VaultAuthConfig.passwordProtected(
+      salt: salt,
+      mac: mac,
+      iterations: iters,
+    );
   }
 }
 
@@ -140,12 +152,17 @@ class VaultAuthService {
       'iterations': iterations,
     };
 
-    _writeAuthJsonAtomic(vaultRoot, const JsonEncoder.withIndent('  ').convert(obj));
+    _writeAuthJsonAtomic(
+      vaultRoot,
+      const JsonEncoder.withIndent('  ').convert(obj),
+    );
   }
 
   /// Removes auth.json if present (disables password protection).
   void disablePasswordProtection({required Directory vaultRoot}) {
-    final f = File('${vaultRoot.path}${Platform.pathSeparator}${VaultAuthConfig.fileName}');
+    final f = File(
+      '${vaultRoot.path}${Platform.pathSeparator}${VaultAuthConfig.fileName}',
+    );
     if (f.existsSync()) {
       f.deleteSync();
     }
@@ -153,10 +170,14 @@ class VaultAuthService {
 
   void _writeAuthJsonAtomic(Directory vaultRoot, String contents) {
     if (!vaultRoot.existsSync()) {
-      throw VaultNotFoundException('Vault root does not exist: ${vaultRoot.path}');
+      throw VaultNotFoundException(
+        'Vault root does not exist: ${vaultRoot.path}',
+      );
     }
 
-    final target = File('${vaultRoot.path}${Platform.pathSeparator}${VaultAuthConfig.fileName}');
+    final target = File(
+      '${vaultRoot.path}${Platform.pathSeparator}${VaultAuthConfig.fileName}',
+    );
     final tmp = File(
       '${vaultRoot.path}${Platform.pathSeparator}.${VaultAuthConfig.fileName}.tmp.${DateTime.now().microsecondsSinceEpoch}',
     );

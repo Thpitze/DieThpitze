@@ -1,4 +1,4 @@
-﻿// lib/core/vault/vault_identity_service.dart
+// lib/core/vault/vault_identity_service.dart
 import 'dart:convert';
 import 'dart:io';
 
@@ -75,7 +75,9 @@ class VaultIdentityService {
     }
 
     if (!_looksLikeUuid(info.vaultId)) {
-      throw VaultInvalidException('vaultId is not a valid UUID: ${info.vaultId}');
+      throw VaultInvalidException(
+        'vaultId is not a valid UUID: ${info.vaultId}',
+      );
     }
 
     if (!_looksLikeIsoUtc(info.createdAtUtc)) {

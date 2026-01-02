@@ -1,4 +1,4 @@
-﻿// lib/core/records/record_service.dart
+// lib/core/records/record_service.dart
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -18,15 +18,10 @@ class RecordService {
   final RecordCodec codec;
   final Clock clock;
 
-  RecordService({
-    required this.codec,
-    required this.clock,
-  });
+  RecordService({required this.codec, required this.clock});
 
   /// Returns record ids (filenames without .md), sorted alphabetically.
-  List<String> listIds({
-    required Directory vaultRoot,
-  }) {
+  List<String> listIds({required Directory vaultRoot}) {
     final dir = _recordsDir(vaultRoot);
     if (!dir.existsSync()) return <String>[];
 
@@ -46,9 +41,7 @@ class RecordService {
   }
 
   /// Returns lightweight headers for display (sorted by updatedAtUtc desc).
-  List<RecordHeader> listHeaders({
-    required Directory vaultRoot,
-  }) {
+  List<RecordHeader> listHeaders({required Directory vaultRoot}) {
     final ids = listIds(vaultRoot: vaultRoot);
 
     final headers = <RecordHeader>[];
@@ -71,9 +64,7 @@ class RecordService {
   }
 
   /// Returns trashed headers for display (sorted by updatedAtUtc desc).
-  List<RecordHeader> listTrashedHeaders({
-    required Directory vaultRoot,
-  }) {
+  List<RecordHeader> listTrashedHeaders({required Directory vaultRoot}) {
     final dir = _trashDir(vaultRoot);
     if (!dir.existsSync()) return <RecordHeader>[];
 
@@ -127,10 +118,7 @@ class RecordService {
     return record;
   }
 
-  Record read({
-    required Directory vaultRoot,
-    required String id,
-  }) {
+  Record read({required Directory vaultRoot, required String id}) {
     final file = File(_recordPath(recordsDir: _recordsDir(vaultRoot), id: id));
 
     if (!file.existsSync()) {
@@ -164,11 +152,10 @@ class RecordService {
   }
 
   /// Soft-delete: move from <vault>/records -> <vault>/trash
-  void deleteRecord({
-    required Directory vaultRoot,
-    required String recordId,
-  }) {
-    final src = File(_recordPath(recordsDir: _recordsDir(vaultRoot), id: recordId));
+  void deleteRecord({required Directory vaultRoot, required String recordId}) {
+    final src = File(
+      _recordPath(recordsDir: _recordsDir(vaultRoot), id: recordId),
+    );
     if (!src.existsSync()) {
       throw VaultNotFoundException('Record not found: ${src.path}');
     }
@@ -181,12 +168,12 @@ class RecordService {
 
     src.renameSync(dst.path);
   }
+
   /// Restore: move from <vault>/trash -> <vault>/records
-  void restoreRecord({
-    required Directory vaultRoot,
-    required String recordId,
-  }) {
-    final src = File(_recordPath(recordsDir: _trashDir(vaultRoot), id: recordId));
+  void restoreRecord({required Directory vaultRoot, required String recordId}) {
+    final src = File(
+      _recordPath(recordsDir: _trashDir(vaultRoot), id: recordId),
+    );
     if (!src.existsSync()) {
       throw VaultNotFoundException('Trashed record not found: ${src.path}');
     }
@@ -194,7 +181,9 @@ class RecordService {
     final recordsDir = _ensureRecordsDir(vaultRoot);
     final dst = File(_recordPath(recordsDir: recordsDir, id: recordId));
     if (dst.existsSync()) {
-      throw VaultInvalidException('Active records already contain id: ${dst.path}');
+      throw VaultInvalidException(
+        'Active records already contain id: ${dst.path}',
+      );
     }
 
     src.renameSync(dst.path);
@@ -230,23 +219,19 @@ class RecordService {
 
   void _assertVaultRootExists(Directory vaultRoot) {
     if (!vaultRoot.existsSync()) {
-      throw VaultNotFoundException('Vault root does not exist: ${vaultRoot.path}');
+      throw VaultNotFoundException(
+        'Vault root does not exist: ${vaultRoot.path}',
+      );
     }
   }
 
-  String _recordPath({
-    required Directory recordsDir,
-    required String id,
-  }) {
+  String _recordPath({required Directory recordsDir, required String id}) {
     return p.join(recordsDir.path, '$id.md');
   }
 
   // ---------- helpers ----------
 
-  Record _readFromFile({
-    required File file,
-    required String expectedId,
-  }) {
+  Record _readFromFile({required File file, required String expectedId}) {
     final content = file.readAsStringSync();
     final record = codec.decode(content);
 

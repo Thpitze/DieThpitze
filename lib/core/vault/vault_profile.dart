@@ -28,10 +28,7 @@ class VaultProfile {
     );
   }
 
-  VaultProfile copyWith({
-    VaultProfileSecurity? security,
-    VaultProfileUi? ui,
-  }) {
+  VaultProfile copyWith({VaultProfileSecurity? security, VaultProfileUi? ui}) {
     return VaultProfile(
       schemaValue: schemaValue,
       security: security ?? this.security,
@@ -40,14 +37,16 @@ class VaultProfile {
   }
 
   Map<String, dynamic> toJsonMap() => <String, dynamic>{
-        'schema': schemaValue,
-        'security': security.toJsonMap(),
-        'ui': ui.toJsonMap(),
-      };
+    'schema': schemaValue,
+    'security': security.toJsonMap(),
+    'ui': ui.toJsonMap(),
+  };
 
   String toJsonString({bool pretty = true}) {
     final obj = toJsonMap();
-    return pretty ? const JsonEncoder.withIndent('  ').convert(obj) : jsonEncode(obj);
+    return pretty
+        ? const JsonEncoder.withIndent('  ').convert(obj)
+        : jsonEncode(obj);
   }
 
   factory VaultProfile.fromJsonMap(Map<String, dynamic> m) {
@@ -73,7 +72,9 @@ class VaultProfile {
 
     return VaultProfile(
       schemaValue: schemaAny,
-      security: VaultProfileSecurity.fromJsonMap(Map<String, dynamic>.from(secAny)),
+      security: VaultProfileSecurity.fromJsonMap(
+        Map<String, dynamic>.from(secAny),
+      ),
       ui: VaultProfileUi.fromJsonMap(Map<String, dynamic>.from(uiAny)),
     );
   }
@@ -92,16 +93,10 @@ class VaultProfileSecurity {
   });
 
   factory VaultProfileSecurity.defaults() {
-    return VaultProfileSecurity(
-      timeoutSeconds: 60,
-      lockPolicy: 'hard',
-    );
+    return VaultProfileSecurity(timeoutSeconds: 60, lockPolicy: 'hard');
   }
 
-  VaultProfileSecurity copyWith({
-    int? timeoutSeconds,
-    String? lockPolicy,
-  }) {
+  VaultProfileSecurity copyWith({int? timeoutSeconds, String? lockPolicy}) {
     return VaultProfileSecurity(
       timeoutSeconds: timeoutSeconds ?? this.timeoutSeconds,
       lockPolicy: lockPolicy ?? this.lockPolicy,
@@ -109,19 +104,23 @@ class VaultProfileSecurity {
   }
 
   Map<String, dynamic> toJsonMap() => <String, dynamic>{
-        'timeoutSeconds': timeoutSeconds,
-        'lockPolicy': lockPolicy,
-      };
+    'timeoutSeconds': timeoutSeconds,
+    'lockPolicy': lockPolicy,
+  };
 
   factory VaultProfileSecurity.fromJsonMap(Map<String, dynamic> m) {
     final tAny = m['timeoutSeconds'];
     if (tAny is! int || tAny < 0) {
-      throw VaultCorruptException('profile.json security.timeoutSeconds missing/invalid');
+      throw VaultCorruptException(
+        'profile.json security.timeoutSeconds missing/invalid',
+      );
     }
 
     final lpAny = m['lockPolicy'];
     if (lpAny is! String || lpAny.isEmpty) {
-      throw VaultCorruptException('profile.json security.lockPolicy missing/invalid');
+      throw VaultCorruptException(
+        'profile.json security.lockPolicy missing/invalid',
+      );
     }
 
     // v1 rule: only "hard" is accepted.
@@ -131,10 +130,7 @@ class VaultProfileSecurity {
       );
     }
 
-    return VaultProfileSecurity(
-      timeoutSeconds: tAny,
-      lockPolicy: lpAny,
-    );
+    return VaultProfileSecurity(timeoutSeconds: tAny, lockPolicy: lpAny);
   }
 }
 
@@ -153,8 +149,8 @@ class VaultProfileUi {
   }
 
   Map<String, dynamic> toJsonMap() => <String, dynamic>{
-        'defaultPlugin': defaultPlugin,
-      };
+    'defaultPlugin': defaultPlugin,
+  };
 
   factory VaultProfileUi.fromJsonMap(Map<String, dynamic> m) {
     final dpAny = m['defaultPlugin'];

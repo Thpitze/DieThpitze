@@ -1,4 +1,4 @@
-﻿// lib/core/vault/vault_errors.dart
+// lib/core/vault/vault_errors.dart
 //
 // Core-level, typed vault failures.
 // These types are intentionally UI-agnostic and are used by the App layer to

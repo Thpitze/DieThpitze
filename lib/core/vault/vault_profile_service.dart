@@ -45,10 +45,12 @@ class VaultProfileService {
   /// - rename over target
   Future<void> save(Directory vaultRoot, VaultProfile profile) async {
     final file = File(_join(vaultRoot.path, profileFileName));
-    final tmp = File(_join(
-      vaultRoot.path,
-      '$profileFileName.tmp.${DateTime.now().microsecondsSinceEpoch}',
-    ));
+    final tmp = File(
+      _join(
+        vaultRoot.path,
+        '$profileFileName.tmp.${DateTime.now().microsecondsSinceEpoch}',
+      ),
+    );
 
     try {
       final json = profile.toJsonString(pretty: true);
