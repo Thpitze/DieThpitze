@@ -30,6 +30,7 @@ void main() {
     final plain = Uint8List.fromList(
       List<int>.generate(64, (i) => (i * 3) & 0xFF),
     );
+
     final payload = await svc.encrypt(
       info: infoBase,
       key: key,
@@ -41,6 +42,13 @@ void main() {
     expect(dec, plain);
     expect(payload.nonce.length, VaultPayloadCodec.nonceLen);
     expect(payload.tag.length, VaultPayloadCodec.tagLen);
+
+    // Ensure codec roundtrip works with the new framing
+    final encoded = VaultPayloadCodec.encodeB64(payload);
+    final decoded = VaultPayloadCodec.decodeB64(encoded);
+    expect(decoded.nonce, payload.nonce);
+    expect(decoded.tag, payload.tag);
+    expect(decoded.ciphertext, payload.ciphertext);
   });
 
   test('wrong password => Locked via keyCheck', () async {
@@ -62,6 +70,7 @@ void main() {
       password: 'correct',
       salt: salt,
     );
+
     final keyCheckB64 = await svc.buildKeyCheckB64(
       info: infoNoCheck,
       key: keyGood,

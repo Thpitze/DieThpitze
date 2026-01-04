@@ -1,106 +1,119 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:thpitze_main/core/vault/vault_encryption_info.dart';
 import 'package:thpitze_main/core/vault/vault_encryption_metadata_service.dart';
+import 'package:thpitze_main/core/vault/vault_encryption_info.dart';
 import 'package:thpitze_main/core/vault/vault_errors.dart';
 
 void main() {
-  group('VaultEncryptionMetadataService', () {
+  group('VaultEncryptionMetadataService (P23 redundancy)', () {
+    late Directory tmpDir;
+    late VaultEncryptionMetadataService svc;
+
+    setUp(() {
+      tmpDir = Directory.systemTemp.createTempSync('thpitze_encmeta_');
+      svc = VaultEncryptionMetadataService();
+    });
+
+    tearDown(() {
+      if (tmpDir.existsSync()) {
+        tmpDir.deleteSync(recursive: true);
+      }
+    });
+
     VaultEncryptionInfo enabledInfo() {
-      return const VaultEncryptionInfo.enabledV1(
-        saltB64: 'AAAAAAAAAAAAAAAAAAAAAA==',
-        kdfParams: VaultKdfParamsV1(
+      // Minimal valid enabled v1 info.
+      return VaultEncryptionInfo.enabledV1(
+        saltB64: base64Encode(List<int>.generate(16, (i) => i + 1)),
+        kdfParams: const VaultKdfParamsV1(
           memoryKiB: 65536,
           iterations: 3,
-          parallelism: 1,
+          parallelism: 2,
         ),
-        keyCheckB64: 'AQIDBAUGBwgJCgsMDQ4PEA==',
+        keyCheckB64: base64Encode(utf8.encode('dummy_keycheck')),
       );
     }
 
-    test('missing encryption.json => none()', () async {
-      final dir = await Directory.systemTemp.createTemp('thpitze_enc_test_');
-      addTearDown(() async {
-        if (await dir.exists()) await dir.delete(recursive: true);
-      });
+    File primaryFile() => File(
+          '${tmpDir.path}${Platform.pathSeparator}'
+          '${VaultEncryptionMetadataService.fileName}',
+        );
 
-      final svc = VaultEncryptionMetadataService();
-      final info = svc.loadOrDefault(vaultRoot: dir);
+    File backupFile() => File(
+          '${tmpDir.path}${Platform.pathSeparator}'
+          '${VaultEncryptionMetadataService.backupFileName}',
+        );
 
-      expect(info.state, 'none');
-      expect(info.version, isNull);
-      expect(info.isEnabled, isFalse);
+    test('save() writes both encryption.json and encryption.json.bak', () async {
+      final info = enabledInfo();
+
+      await svc.save(vaultRoot: tmpDir, info: info);
+
+      expect(primaryFile().existsSync(), isTrue);
+      expect(backupFile().existsSync(), isTrue);
+
+      final loaded1 = svc.loadOrDefault(vaultRoot: tmpDir);
+      expect(loaded1.isEnabled, isTrue);
+      expect(loaded1.version, 1);
+      expect(loaded1.saltB64, info.saltB64);
+      expect(loaded1.keyCheckB64, info.keyCheckB64);
+
+      final rawBak = backupFile().readAsStringSync();
+      final decodedBak = jsonDecode(rawBak);
+      expect(decodedBak, isA<Map<String, dynamic>>());
+      final bakInfo =
+          VaultEncryptionInfo.fromJson(decodedBak as Map<String, dynamic>);
+      expect(bakInfo.saltB64, info.saltB64);
+      expect(bakInfo.keyCheckB64, info.keyCheckB64);
     });
 
-    test('save(enabledV1) then load => enabled', () async {
-      final dir = await Directory.systemTemp.createTemp('thpitze_enc_test_');
-      addTearDown(() async {
-        if (await dir.exists()) await dir.delete(recursive: true);
-      });
+    test('corrupt primary => load uses backup and restores primary', () async {
+      final info = enabledInfo();
+      await svc.save(vaultRoot: tmpDir, info: info);
 
-      final svc = VaultEncryptionMetadataService();
+      primaryFile().writeAsStringSync('THIS IS NOT JSON', flush: true);
 
-      await svc.save(vaultRoot: dir, info: enabledInfo());
-
-      final loaded = svc.loadOrDefault(vaultRoot: dir);
-
+      final loaded = svc.loadOrDefault(vaultRoot: tmpDir);
       expect(loaded.isEnabled, isTrue);
-      expect(loaded.version, 1);
-      expect(loaded.schema, VaultEncryptionInfo.schemaV1);
-      expect((loaded.cipher ?? '').isNotEmpty, isTrue);
-      expect((loaded.kdf ?? '').isNotEmpty, isTrue);
-      expect((loaded.saltB64 ?? '').isNotEmpty, isTrue);
-      expect(loaded.kdfParams, isNotNull);
-      expect((loaded.keyCheckB64 ?? '').isNotEmpty, isTrue);
+      expect(loaded.saltB64, info.saltB64);
 
-      final f = File(
-        '${dir.path}${Platform.pathSeparator}${VaultEncryptionMetadataService.fileName}',
+      final restoredText = primaryFile().readAsStringSync();
+      final restoredDecoded = jsonDecode(restoredText);
+      expect(restoredDecoded, isA<Map<String, dynamic>>());
+
+      final restoredInfo = VaultEncryptionInfo.fromJson(
+        restoredDecoded as Map<String, dynamic>,
       );
-      expect(f.existsSync(), isTrue);
+      expect(restoredInfo.saltB64, info.saltB64);
+      expect(restoredInfo.keyCheckB64, info.keyCheckB64);
     });
 
-    test('invalid schema => VaultInvalidException', () async {
-      final dir = await Directory.systemTemp.createTemp('thpitze_enc_test_');
-      addTearDown(() async {
-        if (await dir.exists()) await dir.delete(recursive: true);
-      });
+    test('corrupt primary + corrupt backup => throws VaultInvalidException',
+        () async {
+      final info = enabledInfo();
+      await svc.save(vaultRoot: tmpDir, info: info);
 
-      final f = File(
-        '${dir.path}${Platform.pathSeparator}${VaultEncryptionMetadataService.fileName}',
-      );
-      f.writeAsStringSync(
-        '{"schema":"bad.schema","state":"enabled","version":1,"cipher":"AES-256-GCM","kdf":"Argon2id","saltB64":"AAAAAAAAAAAAAAAAAAAAAA==","kdfParams":{"memoryKiB":65536,"iterations":3,"parallelism":1},"keyCheckB64":"AQIDBAUGBwgJCgsMDQ4PEA=="}',
-      );
-
-      final svc = VaultEncryptionMetadataService();
+      primaryFile().writeAsStringSync('NOT JSON', flush: true);
+      backupFile().writeAsStringSync('ALSO NOT JSON', flush: true);
 
       expect(
-        () => svc.loadOrDefault(vaultRoot: dir),
+        () => svc.loadOrDefault(vaultRoot: tmpDir),
         throwsA(isA<VaultInvalidException>()),
       );
     });
 
-    test('enabled without version => VaultInvalidException', () async {
-      final dir = await Directory.systemTemp.createTemp('thpitze_enc_test_');
-      addTearDown(() async {
-        if (await dir.exists()) await dir.delete(recursive: true);
-      });
+    test(
+        'missing primary => returns VaultEncryptionInfo.none (even if backup exists)',
+        () async {
+      final info = enabledInfo();
+      await svc.save(vaultRoot: tmpDir, info: info);
 
-      final f = File(
-        '${dir.path}${Platform.pathSeparator}${VaultEncryptionMetadataService.fileName}',
-      );
-      f.writeAsStringSync(
-        '{"schema":"thpitze.vault_encryption.v1","state":"enabled","cipher":"AES-256-GCM","kdf":"Argon2id","saltB64":"AAAAAAAAAAAAAAAAAAAAAA==","kdfParams":{"memoryKiB":65536,"iterations":3,"parallelism":1},"keyCheckB64":"AQIDBAUGBwgJCgsMDQ4PEA=="}',
-      );
+      primaryFile().deleteSync();
 
-      final svc = VaultEncryptionMetadataService();
-
-      expect(
-        () => svc.loadOrDefault(vaultRoot: dir),
-        throwsA(isA<VaultInvalidException>()),
-      );
+      final loaded = svc.loadOrDefault(vaultRoot: tmpDir);
+      expect(loaded, const VaultEncryptionInfo.none());
     });
   });
 }

@@ -1,9 +1,10 @@
-// lib/core/blobs/blob_storage.dart
+ // lib/core/blobs/blob_storage.dart
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 
+import '../io/atomic_file_writer.dart';
 import 'blob_ref.dart';
 
 /// Content-addressed blob storage inside a vault folder.
@@ -15,9 +16,9 @@ class BlobStorage {
   BlobStorage({required this.vaultRoot});
 
   Directory get _baseDir => Directory(
-    '${vaultRoot.path}${Platform.pathSeparator}blobs'
-    '${Platform.pathSeparator}sha256',
-  );
+        '${vaultRoot.path}${Platform.pathSeparator}blobs'
+        '${Platform.pathSeparator}sha256',
+      );
 
   Future<BlobRef> putBytes(Uint8List bytes, {String? mimeType}) async {
     final digest = sha256.convert(bytes);
@@ -25,29 +26,9 @@ class BlobStorage {
     final size = bytes.length;
 
     final file = _fileForHash(hash);
-    if (await file.exists()) {
-      return BlobRef(sha256: hash, sizeBytes: size, mimeType: mimeType);
-    }
 
-    await file.parent.create(recursive: true);
-
-    // Atomic write: temp file then rename.
-    final tmp = File(
-      '${file.path}.tmp.${DateTime.now().microsecondsSinceEpoch}',
-    );
-    await tmp.writeAsBytes(bytes, flush: true);
-
-    try {
-      await tmp.rename(file.path);
-    } on FileSystemException {
-      // If another writer raced and created it, keep the existing blob.
-      if (!await file.exists()) rethrow;
-      try {
-        await tmp.delete();
-      } catch (_) {
-        // ignore cleanup failure
-      }
-    }
+    // Write only if absent. This is safe under concurrency/races.
+    await AtomicFileWriter.writeBytesIfAbsent(file, bytes);
 
     return BlobRef(sha256: hash, sizeBytes: size, mimeType: mimeType);
   }
