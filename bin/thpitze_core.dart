@@ -1,10 +1,13 @@
 // bin/thpitze_core.dart
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
 import 'package:thpitze_main/core/core.dart';
+import 'package:thpitze_main/core/records/encrypted_record_service.dart';
+import 'package:thpitze_main/core/security/vault_crypto_context.dart';
 
 Future<void> main(List<String> args) async {
   if (args.length < 2) {
@@ -44,6 +47,8 @@ Future<void> main(List<String> args) async {
       print('vaultId:   ${ctx.vaultInfo.vaultId}');
       print('schema:    ${ctx.vaultInfo.schemaVersionValue}');
       print('nowUtc:    ${ctx.clock.nowUtc().toIso8601String()}');
+      print('encrypted: ${ctx.crypto?.isEncrypted ?? false}');
+      print('locked:    ${ctx.crypto?.isLocked ?? false}');
       return;
     }
 
@@ -82,22 +87,44 @@ Future<void> main(List<String> args) async {
     if (cmd == 'record-create') {
       final ctx = _openContext(dir, vaultService);
 
-      final service = RecordService(codec: RecordCodec(), clock: ctx.clock);
+      if (_isEncrypted(ctx.crypto)) {
+        final crypto = _requireUnlocked(ctx.crypto);
+        final service = EncryptedRecordService(codec: RecordCodec(), clock: ctx.clock);
 
-      final record = service.create(
-        vaultRoot: ctx.vaultRoot,
-        type: 'note',
-        tags: ['cli'],
-        bodyMarkdown: '# New record\n\nCreated from CLI.\n',
-      );
+        final now = ctx.clock.nowUtc().toIso8601String();
+        final record = Record(
+          id: const Uuid().v4(),
+          createdAtUtc: now,
+          updatedAtUtc: now,
+          type: 'note',
+          tags: const ['cli'],
+          bodyMarkdown: '# New record\n\nCreated from CLI.\n',
+        );
 
-      print('Record created');
-      print('id: ${record.id}');
-      print(
-        'path: ${ctx.vaultRoot.path}${Platform.pathSeparator}records'
-        '${Platform.pathSeparator}${record.id}.md',
-      );
-      return;
+        final created = await service.create(vaultRoot: ctx.vaultRoot, crypto: crypto, record: record);
+
+        print('Record created (encrypted)');
+        print('id: ${created.id}');
+        print('path: ${p.join(ctx.vaultRoot.path, 'records', '${created.id}.md')}');
+        return;
+      } else {
+        final service = RecordService(codec: RecordCodec(), clock: ctx.clock);
+
+        final record = service.create(
+          vaultRoot: ctx.vaultRoot,
+          type: 'note',
+          tags: ['cli'],
+          bodyMarkdown: '# New record\n\nCreated from CLI.\n',
+        );
+
+        print('Record created');
+        print('id: ${record.id}');
+        print(
+          'path: ${ctx.vaultRoot.path}${Platform.pathSeparator}records'
+          '${Platform.pathSeparator}${record.id}.md',
+        );
+        return;
+      }
     }
 
     if (cmd == 'record-read') {
@@ -109,18 +136,33 @@ Future<void> main(List<String> args) async {
       final recordId = args[2];
       final ctx = _openContext(dir, vaultService);
 
-      final service = RecordService(codec: RecordCodec(), clock: ctx.clock);
+      if (_isEncrypted(ctx.crypto)) {
+        final crypto = _requireUnlocked(ctx.crypto);
+        final service = EncryptedRecordService(codec: RecordCodec(), clock: ctx.clock);
 
-      final record = service.read(vaultRoot: ctx.vaultRoot, id: recordId);
+        final record = await service.read(vaultRoot: ctx.vaultRoot, crypto: crypto, id: recordId);
 
-      print('Record read');
-      print('id: ${record.id}');
-      print('createdAtUtc: ${record.createdAtUtc}');
-      print('updatedAtUtc: ${record.updatedAtUtc}');
-      print('type: ${record.type}');
-      print('tags: ${record.tags}');
-      print('body:\n${record.bodyMarkdown}');
-      return;
+        print('Record read (encrypted)');
+        print('id: ${record.id}');
+        print('createdAtUtc: ${record.createdAtUtc}');
+        print('updatedAtUtc: ${record.updatedAtUtc}');
+        print('type: ${record.type}');
+        print('tags: ${record.tags}');
+        print('body:\n${record.bodyMarkdown}');
+        return;
+      } else {
+        final service = RecordService(codec: RecordCodec(), clock: ctx.clock);
+        final record = service.read(vaultRoot: ctx.vaultRoot, id: recordId);
+
+        print('Record read');
+        print('id: ${record.id}');
+        print('createdAtUtc: ${record.createdAtUtc}');
+        print('updatedAtUtc: ${record.updatedAtUtc}');
+        print('type: ${record.type}');
+        print('tags: ${record.tags}');
+        print('body:\n${record.bodyMarkdown}');
+        return;
+      }
     }
 
     if (cmd == 'record-update') {
@@ -132,50 +174,97 @@ Future<void> main(List<String> args) async {
       final recordId = args[2];
       final ctx = _openContext(dir, vaultService);
 
-      final service = RecordService(codec: RecordCodec(), clock: ctx.clock);
-
-      final before = service.read(vaultRoot: ctx.vaultRoot, id: recordId);
-
       final appendedLine =
           '\n- updated via CLI at ${ctx.clock.nowUtc().toIso8601String()}\n';
 
-      final newBody = before.bodyMarkdown + appendedLine;
+      if (_isEncrypted(ctx.crypto)) {
+        final crypto = _requireUnlocked(ctx.crypto);
+        final service = EncryptedRecordService(codec: RecordCodec(), clock: ctx.clock);
 
-      final newTags = <String>{...before.tags, 'updated'}.toList()..sort();
+        final before = await service.read(vaultRoot: ctx.vaultRoot, crypto: crypto, id: recordId);
 
-      final after = service.update(
-        vaultRoot: ctx.vaultRoot,
-        id: recordId,
-        tags: newTags,
-        bodyMarkdown: newBody,
-      );
+        final newBody = before.bodyMarkdown + appendedLine;
+        final newTags = <String>{...before.tags, 'updated'}.toList()..sort();
+        final now = ctx.clock.nowUtc().toIso8601String();
 
-      print('Record updated');
-      print('id: ${after.id}');
-      print('createdAtUtc (before): ${before.createdAtUtc}');
-      print('createdAtUtc (after):  ${after.createdAtUtc}');
-      print('updatedAtUtc (before): ${before.updatedAtUtc}');
-      print('updatedAtUtc (after):  ${after.updatedAtUtc}');
-      print('tags (after): ${after.tags}');
-      return;
+        final updated = Record(
+          id: before.id,
+          createdAtUtc: before.createdAtUtc,
+          updatedAtUtc: now,
+          type: before.type,
+          tags: newTags,
+          bodyMarkdown: newBody,
+        );
+
+        final after = await service.update(
+          vaultRoot: ctx.vaultRoot,
+          crypto: crypto,
+          id: recordId,
+          updated: updated,
+        );
+
+        print('Record updated (encrypted)');
+        print('id: ${after.id}');
+        print('createdAtUtc (before): ${before.createdAtUtc}');
+        print('createdAtUtc (after):  ${after.createdAtUtc}');
+        print('updatedAtUtc (before): ${before.updatedAtUtc}');
+        print('updatedAtUtc (after):  ${after.updatedAtUtc}');
+        print('tags (after): ${after.tags}');
+        return;
+      } else {
+        final service = RecordService(codec: RecordCodec(), clock: ctx.clock);
+
+        final before = service.read(vaultRoot: ctx.vaultRoot, id: recordId);
+
+        final newBody = before.bodyMarkdown + appendedLine;
+        final newTags = <String>{...before.tags, 'updated'}.toList()..sort();
+
+        final after = service.update(
+          vaultRoot: ctx.vaultRoot,
+          id: recordId,
+          tags: newTags,
+          bodyMarkdown: newBody,
+        );
+
+        print('Record updated');
+        print('id: ${after.id}');
+        print('createdAtUtc (before): ${before.createdAtUtc}');
+        print('createdAtUtc (after):  ${after.createdAtUtc}');
+        print('updatedAtUtc (before): ${before.updatedAtUtc}');
+        print('updatedAtUtc (after):  ${after.updatedAtUtc}');
+        print('tags (after): ${after.tags}');
+        return;
+      }
     }
 
     if (cmd == 'record-list') {
       final ctx = _openContext(dir, vaultService);
 
-      final service = RecordService(codec: RecordCodec(), clock: ctx.clock);
+      if (_isEncrypted(ctx.crypto)) {
+        final crypto = _requireUnlocked(ctx.crypto);
+        final service = EncryptedRecordService(codec: RecordCodec(), clock: ctx.clock);
 
-      final headers = service.listHeaders(vaultRoot: ctx.vaultRoot);
+        final headers = await service.listHeaders(vaultRoot: ctx.vaultRoot, crypto: crypto);
 
-      print('Records: ${headers.length}');
-      for (final h in headers) {
-        final shortId = _shortId(h.id);
-        final tags = h.tags.isEmpty ? '-' : h.tags.join(',');
-        print(
-          '${h.updatedAtUtc} | ${h.type} | ${h.title} | tags=$tags | $shortId',
-        );
+        print('Records: ${headers.length} (encrypted)');
+        for (final h in headers) {
+          final shortId = _shortId(h.id);
+          final tags = h.tags.isEmpty ? '-' : h.tags.join(',');
+          print('${h.updatedAtUtc} | ${h.type} | ${h.title} | tags=$tags | $shortId');
+        }
+        return;
+      } else {
+        final service = RecordService(codec: RecordCodec(), clock: ctx.clock);
+        final headers = service.listHeaders(vaultRoot: ctx.vaultRoot);
+
+        print('Records: ${headers.length}');
+        for (final h in headers) {
+          final shortId = _shortId(h.id);
+          final tags = h.tags.isEmpty ? '-' : h.tags.join(',');
+          print('${h.updatedAtUtc} | ${h.type} | ${h.title} | tags=$tags | $shortId');
+        }
+        return;
       }
-      return;
     }
 
     // ------------------------------------------------------------
@@ -191,37 +280,69 @@ Future<void> main(List<String> args) async {
       final provided = args[2].trim();
       final ctx = _openContext(dir, vaultService);
 
-      final service = RecordService(codec: RecordCodec(), clock: ctx.clock);
+      if (_isEncrypted(ctx.crypto)) {
+        final crypto = _requireUnlocked(ctx.crypto);
+        final service = EncryptedRecordService(codec: RecordCodec(), clock: ctx.clock);
 
-      final headers = service.listHeaders(vaultRoot: ctx.vaultRoot);
-      final match = _matchByPrefix(headers.map((h) => h.id), provided);
+        final headers = await service.listHeaders(vaultRoot: ctx.vaultRoot, crypto: crypto);
+        final match = _matchByPrefix(headers.map((h) => h.id), provided);
 
-      if (match == null) {
-        stderr.writeln('No record matches prefix/id: "$provided"');
-        exit(2);
+        if (match == null) {
+          stderr.writeln('No record matches prefix/id: "$provided"');
+          exit(2);
+        }
+
+        service.deleteRecord(vaultRoot: ctx.vaultRoot, recordId: match);
+        print('Record moved to trash (encrypted): $match');
+        return;
+      } else {
+        final service = RecordService(codec: RecordCodec(), clock: ctx.clock);
+
+        final headers = service.listHeaders(vaultRoot: ctx.vaultRoot);
+        final match = _matchByPrefix(headers.map((h) => h.id), provided);
+
+        if (match == null) {
+          stderr.writeln('No record matches prefix/id: "$provided"');
+          exit(2);
+        }
+
+        service.deleteRecord(vaultRoot: ctx.vaultRoot, recordId: match);
+        print('Record moved to trash: $match');
+        return;
       }
-
-      service.deleteRecord(vaultRoot: ctx.vaultRoot, recordId: match);
-      print('Record moved to trash: $match');
-      return;
     }
 
     if (cmd == 'trash-list') {
       final ctx = _openContext(dir, vaultService);
 
-      final service = RecordService(codec: RecordCodec(), clock: ctx.clock);
+      if (_isEncrypted(ctx.crypto)) {
+        final crypto = _requireUnlocked(ctx.crypto);
 
-      final headers = service.listTrashedHeaders(vaultRoot: ctx.vaultRoot);
-
-      print('Trash: ${headers.length}');
-      for (final h in headers) {
-        final shortId = _shortId(h.id);
-        final tags = h.tags.isEmpty ? '-' : h.tags.join(',');
-        print(
-          '${h.updatedAtUtc} | ${h.type} | ${h.title} | tags=$tags | $shortId',
+        final headers = await _listTrashedHeadersEncrypted(
+          vaultRoot: ctx.vaultRoot,
+          crypto: crypto,
+          clock: ctx.clock,
         );
+
+        print('Trash: ${headers.length} (encrypted)');
+        for (final h in headers) {
+          final shortId = _shortId(h.id);
+          final tags = h.tags.isEmpty ? '-' : h.tags.join(',');
+          print('${h.updatedAtUtc} | ${h.type} | ${h.title} | tags=$tags | $shortId');
+        }
+        return;
+      } else {
+        final service = RecordService(codec: RecordCodec(), clock: ctx.clock);
+        final headers = service.listTrashedHeaders(vaultRoot: ctx.vaultRoot);
+
+        print('Trash: ${headers.length}');
+        for (final h in headers) {
+          final shortId = _shortId(h.id);
+          final tags = h.tags.isEmpty ? '-' : h.tags.join(',');
+          print('${h.updatedAtUtc} | ${h.type} | ${h.title} | tags=$tags | $shortId');
+        }
+        return;
       }
-      return;
     }
 
     if (cmd == 'record-restore') {
@@ -233,19 +354,40 @@ Future<void> main(List<String> args) async {
       final provided = args[2].trim();
       final ctx = _openContext(dir, vaultService);
 
-      final service = RecordService(codec: RecordCodec(), clock: ctx.clock);
+      if (_isEncrypted(ctx.crypto)) {
+        final crypto = _requireUnlocked(ctx.crypto);
+        final service = EncryptedRecordService(codec: RecordCodec(), clock: ctx.clock);
 
-      final trashed = service.listTrashedHeaders(vaultRoot: ctx.vaultRoot);
-      final match = _matchByPrefix(trashed.map((h) => h.id), provided);
+        final trashed = await _listTrashedHeadersEncrypted(
+          vaultRoot: ctx.vaultRoot,
+          crypto: crypto,
+          clock: ctx.clock,
+        );
+        final match = _matchByPrefix(trashed.map((h) => h.id), provided);
 
-      if (match == null) {
-        stderr.writeln('No trashed record matches prefix/id: "$provided"');
-        exit(2);
+        if (match == null) {
+          stderr.writeln('No trashed record matches prefix/id: "$provided"');
+          exit(2);
+        }
+
+        service.restoreRecord(vaultRoot: ctx.vaultRoot, recordId: match);
+        print('Record restored (encrypted): $match');
+        return;
+      } else {
+        final service = RecordService(codec: RecordCodec(), clock: ctx.clock);
+
+        final trashed = service.listTrashedHeaders(vaultRoot: ctx.vaultRoot);
+        final match = _matchByPrefix(trashed.map((h) => h.id), provided);
+
+        if (match == null) {
+          stderr.writeln('No trashed record matches prefix/id: "$provided"');
+          exit(2);
+        }
+
+        service.restoreRecord(vaultRoot: ctx.vaultRoot, recordId: match);
+        print('Record restored: $match');
+        return;
       }
-
-      service.restoreRecord(vaultRoot: ctx.vaultRoot, recordId: match);
-      print('Record restored: $match');
-      return;
     }
 
     stderr.writeln('Unknown command: $cmd');
@@ -256,6 +398,81 @@ Future<void> main(List<String> args) async {
     stderr.writeln(st);
     exit(1);
   }
+}
+
+bool _isEncrypted(VaultCryptoContext? crypto) => crypto != null && crypto.isEncrypted;
+
+VaultCryptoContext _requireUnlocked(VaultCryptoContext? crypto) {
+  if (crypto == null || !crypto.isEncrypted) {
+    throw StateError('Internal: expected encrypted VaultCryptoContext.');
+  }
+  if (crypto.isLocked) {
+    throw StateError(
+      'Vault is encrypted but locked. Set THPITZE_PASSWORD in the environment for CLI record commands.',
+    );
+  }
+  return crypto;
+}
+
+Future<List<RecordHeader>> _listTrashedHeadersEncrypted({
+  required Directory vaultRoot,
+  required VaultCryptoContext crypto,
+  required Clock clock,
+}) async {
+  final trashDir = Directory(p.join(vaultRoot.path, 'trash'));
+  if (!trashDir.existsSync()) return <RecordHeader>[];
+
+  final codec = RecordCodec();
+
+  final headers = <RecordHeader>[];
+  for (final entity in trashDir.listSync(followLinks: false)) {
+    if (entity is! File) continue;
+    if (p.extension(entity.path).toLowerCase() != '.md') continue;
+
+    final id = p.basenameWithoutExtension(entity.path).trim();
+    if (id.isEmpty) continue;
+
+    final b64 = entity.readAsStringSync();
+    final payload = VaultPayloadCodec.decodeB64(b64);
+
+    final plainBytes = await crypto.requireEncryptionService.decrypt(
+      info: crypto.requireInfo,
+      key: crypto.requireKey,
+      payload: payload,
+    );
+
+    final content = utf8.decode(plainBytes);
+    final record = codec.decode(content);
+
+    headers.add(
+      RecordHeader(
+        id: record.id,
+        updatedAtUtc: record.updatedAtUtc,
+        type: record.type,
+        tags: record.tags,
+        title: _extractTitle(record.bodyMarkdown),
+      ),
+    );
+  }
+
+  headers.sort((a, b) => b.updatedAtUtc.compareTo(a.updatedAtUtc));
+  return headers;
+}
+
+String _extractTitle(String bodyMarkdown) {
+  final lines = bodyMarkdown.replaceAll('\r\n', '\n').split('\n');
+  for (final raw in lines) {
+    final line = raw.trim();
+    if (line.isEmpty) continue;
+
+    if (line.startsWith('#')) {
+      final cleaned = line.replaceFirst(RegExp(r'^#+\s*'), '').trim();
+      if (cleaned.isNotEmpty) return cleaned;
+    }
+
+    return line;
+  }
+  return '(untitled)';
 }
 
 CoreContext _openContext(
@@ -317,5 +534,6 @@ void _printUsage() {
   print('  record-restore <vaultPath> <recordIdOrPrefix>');
   print('');
   print('Env:');
-  print('  THPITZE_PASSWORD=<pw>   (optional for open/auth)');
+  print('  THPITZE_PASSWORD=<pw>   (required for encrypted vault record commands)');
 }
+
