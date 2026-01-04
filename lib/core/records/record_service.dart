@@ -114,7 +114,10 @@ class RecordService {
     );
 
     final file = File(_recordPath(recordsDir: recordsDir, id: id));
-    file.writeAsStringSync(codec.encode(record));
+
+    // P23: atomic write (temp -> flush -> rename)
+    _writeStringAtomicSync(file, codec.encode(record));
+
     return record;
   }
 
@@ -146,7 +149,9 @@ class RecordService {
     );
 
     final file = File(_recordPath(recordsDir: _recordsDir(vaultRoot), id: id));
-    file.writeAsStringSync(codec.encode(updated));
+
+    // P23: atomic write (temp -> flush -> rename)
+    _writeStringAtomicSync(file, codec.encode(updated));
 
     return updated;
   }
@@ -260,5 +265,14 @@ class RecordService {
     }
 
     return '(untitled)';
+  }
+
+  // P23: atomic write helper (temp -> flush -> rename).
+  void _writeStringAtomicSync(File target, String text) {
+    target.parent.createSync(recursive: true);
+
+    final tmp = File('${target.path}.tmp.${DateTime.now().microsecondsSinceEpoch}');
+    tmp.writeAsStringSync(text, flush: true);
+    tmp.renameSync(target.path);
   }
 }
