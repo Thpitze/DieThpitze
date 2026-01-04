@@ -1,17 +1,24 @@
 /* lib/app/vault/new_vault_wizard.dart */
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/records/record_service.dart';
+import '../../core/security/vault_encryption_service_impl.dart';
 import '../../core/vault/vault_auth_service.dart';
+import '../../core/vault/vault_encryption_info.dart';
+import '../../core/vault/vault_encryption_metadata_service.dart';
 import '../../core/vault/vault_identity_service.dart';
 import '../../core/vault/vault_profile.dart';
 import '../../core/vault/vault_profile_service.dart';
 
-enum _SecurityMode { open, password }
+/// Encryption is decided only at vault creation (no “flying encryption” / no migration UI).
+/// Password protection (auth.json) is separate and remains optional.
+enum _SecurityMode { open, password, encrypted }
 
 class NewVaultWizard extends StatefulWidget {
   const NewVaultWizard({super.key});
@@ -83,6 +90,58 @@ class _NewVaultWizardState extends State<NewVaultWizard> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
+  Uint8List _randomBytes(int n) {
+    final r = Random.secure();
+    final out = Uint8List(n);
+    for (var i = 0; i < n; i++) {
+      out[i] = r.nextInt(256);
+    }
+    return out;
+  }
+
+  Future<void> _createEncryptionMetadata({
+    required Directory vaultRoot,
+    required String password,
+  }) async {
+    // Params: keep these conservative; you can tune later.
+    const kdfParams = VaultKdfParamsV1(
+      memoryKiB: 65536, // 64 MiB
+      iterations: 3,
+      parallelism: 2,
+    );
+
+    final salt = _randomBytes(16);
+
+    // Build an enabled info object (keyCheckB64 will be computed next).
+    final seedInfo = VaultEncryptionInfo.enabledV1(
+      saltB64: base64Encode(salt),
+      kdfParams: kdfParams,
+      keyCheckB64: 'pending',
+    );
+
+    final encSvc = VaultEncryptionServiceImpl();
+
+    final key = await encSvc.deriveKey(
+      info: seedInfo,
+      password: password,
+      salt: salt,
+    );
+
+    final keyCheckB64 = await encSvc.buildKeyCheckB64(
+      info: seedInfo,
+      key: key,
+    );
+
+    final finalInfo = VaultEncryptionInfo.enabledV1(
+      saltB64: base64Encode(salt),
+      kdfParams: kdfParams,
+      keyCheckB64: keyCheckB64,
+    );
+
+    final metaSvc = VaultEncryptionMetadataService();
+    await metaSvc.save(vaultRoot: vaultRoot, info: finalInfo);
+  }
+
   Future<void> _create() async {
     final rawPath = _pathCtrl.text.trim();
     if (rawPath.isEmpty) {
@@ -101,7 +160,8 @@ class _NewVaultWizardState extends State<NewVaultWizard> {
       }
     }
 
-    if (_mode == _SecurityMode.password) {
+    // Password required for password-protected and encrypted modes.
+    if (_mode != _SecurityMode.open) {
       final p1 = _pw1Ctrl.text;
       final p2 = _pw2Ctrl.text;
       if (p1.trim().isEmpty) {
@@ -149,7 +209,15 @@ class _NewVaultWizardState extends State<NewVaultWizard> {
       );
       await profileSvc.save(root, profile);
 
-      // auth.json (optional)
+      // encryption.json (creation-time only)
+      if (_mode == _SecurityMode.encrypted) {
+        await _createEncryptionMetadata(
+          vaultRoot: root,
+          password: _pw1Ctrl.text,
+        );
+      }
+
+      // auth.json (optional) — only for password-protected mode
       if (_mode == _SecurityMode.password) {
         const authSvc = VaultAuthService();
         authSvc.enablePasswordProtection(
@@ -222,11 +290,15 @@ class _NewVaultWizardState extends State<NewVaultWizard> {
                     value: _SecurityMode.password,
                     title: Text('Password-protected'),
                   ),
+                  RadioListTile<_SecurityMode>(
+                    value: _SecurityMode.encrypted,
+                    title: Text('Encrypted'),
+                  ),
                 ],
               ),
             ),
           ),
-          if (_mode == _SecurityMode.password) ...[
+          if (_mode != _SecurityMode.open) ...[
             const SizedBox(height: 8),
             TextField(
               controller: _pw1Ctrl,
