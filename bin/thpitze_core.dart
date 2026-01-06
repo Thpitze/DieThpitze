@@ -41,7 +41,7 @@ Future<void> main(List<String> args) async {
     }
 
     if (cmd == 'open') {
-      final ctx = _openContext(dir, vaultService);
+      final ctx = await _openContext(dir, vaultService);
       print('CoreContext created');
       print('vaultRoot: ${ctx.vaultRoot.path}');
       print('vaultId:   ${ctx.vaultInfo.vaultId}');
@@ -85,7 +85,7 @@ Future<void> main(List<String> args) async {
     // ------------------------------------------------------------
 
     if (cmd == 'record-create') {
-      final ctx = _openContext(dir, vaultService);
+      final ctx = await _openContext(dir, vaultService);
 
       if (_isEncrypted(ctx.crypto)) {
         final crypto = _requireUnlocked(ctx.crypto);
@@ -134,7 +134,7 @@ Future<void> main(List<String> args) async {
       }
 
       final recordId = args[2];
-      final ctx = _openContext(dir, vaultService);
+      final ctx = await _openContext(dir, vaultService);
 
       if (_isEncrypted(ctx.crypto)) {
         final crypto = _requireUnlocked(ctx.crypto);
@@ -172,7 +172,7 @@ Future<void> main(List<String> args) async {
       }
 
       final recordId = args[2];
-      final ctx = _openContext(dir, vaultService);
+      final ctx = await _openContext(dir, vaultService);
 
       final appendedLine =
           '\n- updated via CLI at ${ctx.clock.nowUtc().toIso8601String()}\n';
@@ -238,7 +238,7 @@ Future<void> main(List<String> args) async {
     }
 
     if (cmd == 'record-list') {
-      final ctx = _openContext(dir, vaultService);
+      final ctx = await _openContext(dir, vaultService);
 
       if (_isEncrypted(ctx.crypto)) {
         final crypto = _requireUnlocked(ctx.crypto);
@@ -278,7 +278,7 @@ Future<void> main(List<String> args) async {
       }
 
       final provided = args[2].trim();
-      final ctx = _openContext(dir, vaultService);
+      final ctx = await _openContext(dir, vaultService);
 
       if (_isEncrypted(ctx.crypto)) {
         final crypto = _requireUnlocked(ctx.crypto);
@@ -313,7 +313,7 @@ Future<void> main(List<String> args) async {
     }
 
     if (cmd == 'trash-list') {
-      final ctx = _openContext(dir, vaultService);
+      final ctx = await _openContext(dir, vaultService);
 
       if (_isEncrypted(ctx.crypto)) {
         final crypto = _requireUnlocked(ctx.crypto);
@@ -352,7 +352,7 @@ Future<void> main(List<String> args) async {
       }
 
       final provided = args[2].trim();
-      final ctx = _openContext(dir, vaultService);
+      final ctx = await _openContext(dir, vaultService);
 
       if (_isEncrypted(ctx.crypto)) {
         final crypto = _requireUnlocked(ctx.crypto);
@@ -475,10 +475,10 @@ String _extractTitle(String bodyMarkdown) {
   return '(untitled)';
 }
 
-CoreContext _openContext(
+Future<CoreContext> _openContext(
   Directory vaultRoot,
   VaultIdentityService vaultIdentityService,
-) {
+) async {
   final bootstrap = CoreBootstrap(
     vaultIdentityService: vaultIdentityService,
     clock: _SystemClock(),
@@ -486,7 +486,7 @@ CoreContext _openContext(
 
   // Optional: allow supplying password via env var for CLI usage
   final pw = Platform.environment['THPITZE_PASSWORD'];
-  return bootstrap.openVault(vaultRoot, password: pw);
+  return await bootstrap.openVault(vaultRoot, password: pw);
 }
 
 class _SystemClock implements Clock {
@@ -536,4 +536,5 @@ void _printUsage() {
   print('Env:');
   print('  THPITZE_PASSWORD=<pw>   (required for encrypted vault record commands)');
 }
+
 

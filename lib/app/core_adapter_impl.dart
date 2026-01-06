@@ -70,7 +70,7 @@ class CoreAdapterImpl implements CoreAdapter {
   @override
   Future<void> openVault({required String vaultPath, String? password}) async {
     final dir = Directory(vaultPath);
-    _ctx = _bootstrap.openVault(dir, password: password);
+    _ctx = await _bootstrap.openVault(dir, password: password);
   }
 
   @override
