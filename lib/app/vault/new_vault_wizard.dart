@@ -45,7 +45,26 @@ class _NewVaultWizardState extends State<NewVaultWizard> {
   bool _busy = false;
 
   @override
+  void initState() {
+    super.initState();
+
+    // Rebuild when inputs change so button enable/disable reacts immediately.
+    _pathCtrl.addListener(_onFormChanged);
+    _pw1Ctrl.addListener(_onFormChanged);
+    _pw2Ctrl.addListener(_onFormChanged);
+  }
+
+  void _onFormChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  @override
   void dispose() {
+    _pathCtrl.removeListener(_onFormChanged);
+    _pw1Ctrl.removeListener(_onFormChanged);
+    _pw2Ctrl.removeListener(_onFormChanged);
+
     _pathCtrl.dispose();
     _pw1Ctrl.dispose();
     _pw2Ctrl.dispose();
@@ -161,14 +180,15 @@ class _NewVaultWizardState extends State<NewVaultWizard> {
     }
 
     // Password required for password-protected and encrypted modes.
+    final String pw = _pw1Ctrl.text.trim();
+    final String pw2 = _pw2Ctrl.text.trim();
+
     if (_mode != _SecurityMode.open) {
-      final p1 = _pw1Ctrl.text;
-      final p2 = _pw2Ctrl.text;
-      if (p1.trim().isEmpty) {
+      if (pw.isEmpty) {
         _toast('Password must not be empty.');
         return;
       }
-      if (p1 != p2) {
+      if (pw != pw2) {
         _toast('Passwords do not match.');
         return;
       }
@@ -213,7 +233,7 @@ class _NewVaultWizardState extends State<NewVaultWizard> {
       if (_mode == _SecurityMode.encrypted) {
         await _createEncryptionMetadata(
           vaultRoot: root,
-          password: _pw1Ctrl.text,
+          password: pw,
         );
       }
 
@@ -223,7 +243,7 @@ class _NewVaultWizardState extends State<NewVaultWizard> {
         authSvc.enablePasswordProtection(
           vaultRoot: root,
           vaultId: _readVaultId(root),
-          password: _pw1Ctrl.text,
+          password: pw,
         );
       }
 
@@ -237,6 +257,15 @@ class _NewVaultWizardState extends State<NewVaultWizard> {
 
   @override
   Widget build(BuildContext context) {
+    final String path = _pathCtrl.text.trim();
+    final String pw = _pw1Ctrl.text.trim();
+    final String pw2 = _pw2Ctrl.text.trim();
+
+    final bool pathOk = path.isNotEmpty;
+    final bool pwOk = (_mode == _SecurityMode.open) || (pw.isNotEmpty && pw == pw2);
+
+    final bool canCreate = !_busy && pathOk && pwOk;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Make new vault')),
       body: ListView(
@@ -256,6 +285,7 @@ class _NewVaultWizardState extends State<NewVaultWizard> {
                     labelText: 'Vault folder path',
                     hintText: r'C:\...\MyVault',
                   ),
+                  enabled: !_busy,
                 ),
               ),
               const SizedBox(width: 8),
@@ -304,12 +334,14 @@ class _NewVaultWizardState extends State<NewVaultWizard> {
               controller: _pw1Ctrl,
               obscureText: true,
               decoration: const InputDecoration(labelText: 'Password'),
+              enabled: !_busy,
             ),
             const SizedBox(height: 8),
             TextField(
               controller: _pw2Ctrl,
               obscureText: true,
               decoration: const InputDecoration(labelText: 'Repeat password'),
+              enabled: !_busy,
             ),
           ],
           const SizedBox(height: 16),
@@ -328,7 +360,7 @@ class _NewVaultWizardState extends State<NewVaultWizard> {
           ),
           const SizedBox(height: 16),
           FilledButton.icon(
-            onPressed: _busy ? null : _create,
+            onPressed: canCreate ? _create : null,
             icon: _busy
                 ? const SizedBox(
                     width: 18,

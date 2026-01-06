@@ -90,11 +90,18 @@ class _AppShellState extends State<AppShell> {
     return f.existsSync();
   }
 
+  bool _hasEncryptionJson(String vaultPath) {
+    final f = File('$vaultPath${Platform.pathSeparator}encryption.json');
+    return f.existsSync();
+  }
+
   Future<void> _maybeAutoPromptAuth() async {
     if (_didAutoPromptAuth) return;
 
     final vs = _vault.state;
-    if (vs.kind == VaultStateKind.locked && vs.lockReason == 'auth_required') {
+    if (vs.kind == VaultStateKind.locked &&
+        (vs.lockReason == 'auth_required' ||
+         vs.lockReason == 'encryption_required')) {
       _didAutoPromptAuth = true;
       await _unlockFlow();
     }
@@ -109,8 +116,13 @@ class _AppShellState extends State<AppShell> {
     final path = vs.vaultPath;
     if (path == null || path.trim().isEmpty) return;
 
-    // If there is no auth.json, do NOT prompt. Just unlock.
-    if (!_hasAuthJson(path)) {
+    final bool needsCredentials =
+        _hasAuthJson(path) ||
+        _hasEncryptionJson(path) ||
+        vs.lockReason == 'encryption_required';
+
+    // Unprotected + unencrypted vaults: unlock without prompting
+    if (!needsCredentials) {
       await _vault.unlockWithPassword(password: '');
       return;
     }
@@ -128,9 +140,8 @@ class _AppShellState extends State<AppShell> {
     if (!mounted) return;
 
     if (_vault.state.kind == VaultStateKind.error) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Unlock failed')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Unlock failed')));
     }
   }
 

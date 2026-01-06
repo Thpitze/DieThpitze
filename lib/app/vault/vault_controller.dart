@@ -171,17 +171,19 @@ class VaultController extends ChangeNotifier {
 
     if (_state.kind != VaultStateKind.locked) return;
 
+    final pw = password.trim();
+
     recordUserActivity();
     _setState(VaultState.opening(path));
 
     try {
       await _adapter.openVault(
         vaultPath: path,
-        password: password.trim().isEmpty ? null : password,
+        password: pw.isEmpty ? null : pw,
       );
 
       // Always remember for session (until lock/close/app exit)
-      _sessionPassword = password.trim().isEmpty ? null : password;
+      _sessionPassword = pw.isEmpty ? null : pw;
 
       await _loadOrCreateProfileForMountedVault(path);
 
@@ -308,3 +310,4 @@ class VaultController extends ChangeNotifier {
     notifyListeners();
   }
 }
+
